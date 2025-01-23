@@ -7,6 +7,7 @@ from typing import TypeAlias
 from pathlib import Path
 from wigners import clebsch_gordan
 from scipy.constants import h, physical_constants
+import qls
 
 matplotlib.use("TkAgg")
 
@@ -305,6 +306,68 @@ class CaH:
             ax.text((m1 + m2) / 2.0 - 0.2, (energy1 + energy2) / 2.0, f"{energy_diff:.3f}", fontsize=10)
             # add the coupling strength as text on the arrow
             ax.text((m1 + m2) / 2.0, (energy1 + energy2) / 2.0 - 0.9, f"{coupling:.3f}", fontsize=10, color="red")
+
+        plt.show()
+        plt.close()
+
+    def prova(self, j: int, data_ac: list):
+        """
+        Plot the Zeeman energies of all states in a given j value.
+        """
+        states_in_j = self.state_df.loc[self.state_df["j"] == j]
+        transitions_in_j = self.transition_df[self.transition_df["j"] == j]
+        m = states_in_j["m"].to_numpy()
+        energies = states_in_j["zeeman_energy_khz"].to_numpy()
+        spin_up = states_in_j["spin_up"].to_numpy()
+        spin_down = states_in_j["spin_down"].to_numpy()
+        colors = spin_up**2 - spin_down**2
+
+
+        # With AC stark shift
+        rabi_rate_mhz_1 = data_ac[0] # 0.002
+        rabi_rate_mhz_2 = data_ac[1] # 0.004
+        q1 = data_ac[2] # qls.Polarization(1, 0, 0)
+        q2 = data_ac[3] # qls.Polarization(0, 0, 1)
+        ac_stark_shifts = qls.get_ac_stark_shifts(self, rabi_rate_mhz_1, rabi_rate_mhz_2, q1, q2)
+        energies_shifted = energies + ac_stark_shifts[states_in_j.index] * 1e3
+
+        diff = energies_shifted - energies
+
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 16))
+        ax1.scatter(m, energies, marker="_", c=colors, cmap="plasma", s=500, linewidths=5)
+        ax1.scatter(m, energies_shifted, marker=".", c=colors, cmap="plasma", s=500, linewidths=5)
+        ax1.set_xlabel("m")
+        ax1.set_ylabel("Zeeman energy (kHz)")
+        ax1.set_title(f"Zeeman energies of all states in j={j}, B={self.b_field_gauss} G")
+        ax1.set_xticks(m)
+
+        # plot the difference between neibouring states on arrows conecting them
+        for transition in transitions_in_j.itertuples():
+            m1 = transition.m1
+            xi1 = transition.xi1
+            energy1 = self.state_df.loc[(self.state_df["j"] == j) & (self.state_df["m"] == m1) & (self.state_df["xi"] == xi1)].iloc[0].zeeman_energy_khz
+            m2 = transition.m2
+            xi2 = transition.xi2
+            energy2 = self.state_df.loc[(self.state_df["j"] == j) & (self.state_df["m"] == m2) & (self.state_df["xi"] == xi2)].iloc[0].zeeman_energy_khz
+            energy_diff = transition.energy_diff
+            coupling = transition.coupling
+            ax1.arrow(float(m1), float(energy1), -1.0, float(energy_diff), head_width=0.1, head_length=0.1, linestyle="dotted", color="black")
+            # add the energy difference as text on the arrow
+            ax1.text((m1 + m2) / 2.0 - 0.2, (energy1 + energy2) / 2.0, f"{energy_diff:.3f}", fontsize=10)
+            # add the coupling strength as text on the arrow
+            ax1.text((m1 + m2) / 2.0, (energy1 + energy2) / 2.0 - 0.9, f"{coupling:.3f}", fontsize=10, color="red")
+
+
+        ax2.scatter(m, diff, c=colors)
+        ax2.set_xlabel("m")
+        ax2.set_ylabel("Energy difference (kHz)")
+        ax2.set_title(f"Energy difference: comparison WITH and WITHOUT AC Stark shift. j={j}, B={self.b_field_gauss} G")
+        ax2.set_xticks(m)
+        ax2.grid()
+
+        fig.colorbar(matplotlib.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=-1, vmax=1), cmap="plasma"), ax=[ax1])
+        fig.colorbar(matplotlib.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=-1, vmax=1), cmap="plasma"), ax=[ax2])
 
         plt.show()
         plt.close()

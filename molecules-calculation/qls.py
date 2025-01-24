@@ -64,7 +64,14 @@ def get_thermal_distribution(molecule: Molecule, temperature: float) -> np.ndarr
         np.ndarray: The thermal distribution for each state
     """
     rotational_energy_ghz = molecule.state_df["rotation_energy_ghz"].to_numpy()
+
+    # try
+    # j_values = molecule.state_df["j"].to_numpy()
+    # degeneracy = (2*j_values + 1)*2
+    # state_distribution = degeneracy * np.exp(-h * rotational_energy_ghz * 1e9 / (k * temperature))
+
     state_distribution = np.exp(-h * rotational_energy_ghz * 1e9 / (k * temperature))
+
 
     state_distribution /= np.sum(state_distribution)
     return state_distribution

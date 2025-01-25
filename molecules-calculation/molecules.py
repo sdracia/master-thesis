@@ -130,7 +130,8 @@ class CaH:
                 if m == -j - 0.5:
                     spin_up = 0.0
                     spin_down = 1.0
-                    zeeman_energy_khz = (self.gj * j + gI / 2) * self.cb_khz - self.cij_khz * j / 2
+                    # zeeman_energy_khz = (self.gj * j + gI / 2) * self.cb_khz - self.cij_khz * j / 2
+                    zeeman_energy_khz = (self.gj * j + gI / 2) * self.cb_khz + self.cij_khz * j / 2
                     state_list.append([j, float(m), xi, spin_up, spin_down, zeeman_energy_khz, rotation_energy_ghz])
                 else:
                     spin_up = sqrt((x - y) / (2 * x))

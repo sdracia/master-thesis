@@ -35,6 +35,7 @@ def get_excitation_probabilities(
         np.ndarray: The excitation probabilities for each state
     """
     state_exc_probs = np.zeros(len(molecule.state_df))
+
     detunings = 2 * np.pi * (frequency - molecule.transition_df["energy_diff"].to_numpy(dtype=float) * 1e-3)
     omegas = rabi_rate_mhz * molecule.transition_df["coupling"].to_numpy(dtype=float)
 
@@ -42,12 +43,14 @@ def get_excitation_probabilities(
         transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * ((1 - np.cos(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us) * np.exp(-duration_us / coherence_time_us)) / 2)
     else:
         transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * np.sin(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us / 2) ** 2
+
     if is_minus:
         # state1 --> state2
         states_index = molecule.transition_df["index1"].to_numpy(dtype=int)
     else:
         # state2 --> state1
         states_index = molecule.transition_df["index2"].to_numpy(dtype=int)
+
     for i in range(len(molecule.transition_df)):
         state_exc_probs[states_index[i]] += transition_exc_probs[i]
 
@@ -135,12 +138,15 @@ def excitation_matrix(
         np.ndarray: The excitation probabilities for each state
     """
     num_states = len(molecule.state_df)
+
     detunings = 2 * np.pi * (frequency - molecule.transition_df["energy_diff"].to_numpy(dtype=float) * 1e-3)
     omegas = rabi_rate_mhz * molecule.transition_df["coupling"].to_numpy(dtype=float)
+
     if dephased:
         transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * ((1 - np.cos(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us) * np.exp(-duration_us / coherence_time_us)) / 2)
     else:
         transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * np.sin(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us / 2) ** 2
+        
     if is_minus:
         # state1 --> state2
         rows = molecule.transition_df["index2"].to_numpy(dtype=int)

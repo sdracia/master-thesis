@@ -1,0 +1,35 @@
+### Bayesian State Estimation Run Metadata ###
+
+molecule_type: CaH
+temperature: 300
+b_field_gauss: 3.6
+j_max: 14
+rabi_by_j: 0.012566370614359173
+dephased: False
+coherence_time_us: 1000
+is_minus: False
+false_positive_rate: 0.03
+false_negative_rate: 0.03
+noise_params: {'frequency': {'type': 'abs_gaussian', 'level': 3e-05}, 'rabi_rate': {'type': 'rel_gaussian', 'level': 0.01}}
+seed: None
+laser_miscalibration: {'frequency': {'type': 'abs_gaussian', 'level': 5e-05}, 'rabi_rate': {'type': 'rel_gaussian', 'level': 0.1}}
+seed_miscalibration: 6745
+noise_params_estim: {'frequency': {'type': 'rel_gaussian', 'level': 0.0}, 'rabi_rate': {'type': 'rel_gaussian', 'level': 0.0}}
+laser_miscalibration_estim: {'frequency': {'type': 'abs_gaussian', 'level': 0.0}, 'rabi_rate': {'type': 'rel_gaussian', 'level': 0.0}}
+pop_fit: [array([0.94768657, 0.99127639, 0.96906766, 0.90215322, 0.76657544,
+       0.6282876 , 0.55797769, 0.53432805, 0.52754103, 0.52568493,
+       0.52518409, 0.52504944, 0.52501328, 0.52500356]), array([0.00237329, 0.00872057, 0.03093234, 0.09784678, 0.23342456,
+       0.3717124 , 0.44202231, 0.46567195, 0.47245897, 0.47431507,
+       0.47481591, 0.47495056, 0.47498672, 0.47499644]), array([4.99401308e-02, 3.03894085e-06, 1.66456404e-10, 9.10382880e-15,
+       0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+       0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+       0.00000000e+00, 0.00000000e+00])]
+N: 1000
+num_updates: 25
+block_steps: 24
+type_block: block8
+apply_pumping: False
+marginalization: False
+false_rates: True
+save_data: True
+only_total: False

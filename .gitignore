@@ -1,0 +1,13 @@
+project/molecule_data/
+project/notebooks/off_resonant_coupling/cah_init_PU/
+project/notebooks/off_resonant_coupling/cah_init_LM/
+project/notebooks/off_resonant_coupling/caoh_init_PU/
+project/notebooks/off_resonant_coupling/caoh_init_LM/
+project/images/
+project/results_rap_caoh/
+project/results_rap_cah/
+project/results_pumping_caoh/
+project/results_pumping_cah/
+project/pumping_RAP_data_cah/
+project/pumping_RAP_data_caoh/
+project/odf_json/

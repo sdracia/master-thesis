@@ -23,6 +23,7 @@ def run_bayesian_state_estimation(molecule=None, molecule_type="CaOH", temperatu
                                   N=100, num_updates=10, block_steps=1, type_block=None, 
                                   apply_pumping=False, marginalization=True, false_rates=True,
                                   save_data=True, only_total=False,
+                                  max_excitation=0.9
                                   ):
 
     curves_by_label = {
@@ -57,7 +58,7 @@ def run_bayesian_state_estimation(molecule=None, molecule_type="CaOH", temperatu
         is_minus=is_minus, 
         noise_params=noise_params_estim, 
         seed=None, 
-        max_excitation=0.9,
+        max_excitation=max_excitation,
         laser_miscalibration=laser_miscalibration_estim,
         seed_miscalibration=None,
         marginalization = marginalization
@@ -110,7 +111,9 @@ def run_bayesian_state_estimation(molecule=None, molecule_type="CaOH", temperatu
                                     laser_miscalibration=laser_miscalibration,
                                     seed_miscalibration=seed_miscalibration,
                                     pop_fit=pop_fit,
-                                    false_rates=false_rates)
+                                    false_rates=false_rates,
+                                    max_excitation=max_excitation
+                                    )
         
         cross_entropy = Estimator.cross_entropy(Simulator)
 
@@ -221,7 +224,7 @@ def run_bayesian_state_estimation(molecule=None, molecule_type="CaOH", temperatu
     save_metadata(molecule_type, temperature, b_field_gauss, j_max, rabi_by_j, dephased, coherence_time_us, is_minus,
           false_positive_rate, false_negative_rate, noise_params, seed, laser_miscalibration, seed_miscalibration,
           noise_params_estim, laser_miscalibration_estim, pop_fit, N, num_updates,
-          block_steps, type_block, apply_pumping, marginalization, false_rates, save_data, only_total)
+          block_steps, type_block, apply_pumping, marginalization, false_rates, save_data, only_total, max_excitation)
     
     return results
 

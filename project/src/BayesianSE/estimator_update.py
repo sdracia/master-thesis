@@ -20,7 +20,8 @@ def update_distibution(
         laser_miscalibration=None, 
         seed_miscalibration=None,
         pop_fit = None,
-        false_rates = True
+        false_rates = True,
+        max_excitation = 0.9
         ):
     
     if isinstance(self.model, CaH):
@@ -38,7 +39,6 @@ def update_distibution(
     final_step = num_updates * block_steps
     stop_flag = False
     variance = 0.0
-    n_wrong_sweep = 0.0
 
     for j in range (num_updates):
 
@@ -51,12 +51,6 @@ def update_distibution(
                 print("Re-pumping updating prior")
                 self.within_run_pumping(simulator, save_data)
                 
-        # Part to change the frequency of the measurements after each failure sweep.
-        if j != 0 and j%(self.j_max) == 0 and j//self.j_max >= 6:
-            # Part of the first strategy for block2 and block3 only
-            n_wrong_sweep += 1
-
-
 
         for i in range(block_steps):
             
@@ -69,7 +63,12 @@ def update_distibution(
 
             current_measurement = self.measurements[self.meas_idx]
 
-            self.outcome = simulator.outcome_simulator(current_measurement, noise_params, seed, laser_miscalibration, seed_miscalibration)
+            self.outcome = simulator.outcome_simulator(current_measurement, 
+                                                       noise_params, 
+                                                       seed, 
+                                                       laser_miscalibration, 
+                                                       seed_miscalibration,
+                                                       max_excitation)
 
             if false_rates:
                 if self.outcome == 0:

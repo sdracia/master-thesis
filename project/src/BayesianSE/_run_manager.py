@@ -63,7 +63,7 @@ def plot_bayesian_run(fig, filename):
 def save_metadata(molecule_type, temperature, b_field_gauss, j_max, rabi_by_j, dephased, coherence_time_us, is_minus,
                   false_positive_rate, false_negative_rate, noise_params, seed, laser_miscalibration, seed_miscalibration,
                   noise_params_estim, laser_miscalibration_estim, pop_fit, N, num_updates,
-                  block_steps, type_block, apply_pumping, marginalization, false_rates, save_data, only_total):
+                  block_steps, type_block, apply_pumping, marginalization, false_rates, save_data, only_total, max_excitation):
     
     global CURRENT_RUN_PATH
 
@@ -101,7 +101,8 @@ def save_metadata(molecule_type, temperature, b_field_gauss, j_max, rabi_by_j, d
             "marginalization": marginalization,
             "false_rates": false_rates,
             "save_data": save_data,
-            "only_total": only_total
+            "only_total": only_total,
+            "max_excitation": max_excitation
         }
 
         for key, value in inputs.items():

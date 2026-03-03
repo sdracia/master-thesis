@@ -6,7 +6,13 @@ import numpy as np
 
 
 
-def outcome_simulator(self, current_measurement, noise_params=None, seed=None, laser_miscalibration=None, seed_miscalibration=None):
+def outcome_simulator(self, 
+                      current_measurement, 
+                      noise_params=None, 
+                      seed=None, 
+                      laser_miscalibration=None, 
+                      seed_miscalibration=None,
+                      max_excitation=0.9):
 
     # Step 2. At each measurement driven by the Bayesian Estimator, we calculate the outcome making the Simulator to evolve. 
     #       If that measurement is able to drive the transition and to effectively make the level to jump (according to the excitation probability distribution),
@@ -39,7 +45,7 @@ def outcome_simulator(self, current_measurement, noise_params=None, seed=None, l
                                             is_minus=is_minus,
                                             noise_params=noise_params,
                                             seed=seed,
-                                            maximum_excitation=0.9,
+                                            maximum_excitation=max_excitation,
                                             laser_miscalibration=laser_miscalibration,
                                             seed_miscalibration=seed_miscalibration)
 

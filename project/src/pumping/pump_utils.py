@@ -1,13 +1,43 @@
+"""
+Utility Module for Molecular Pumping Simulations.
+
+This module provides helper functions to:
+- Validate laser configuration dictionaries for consistency and type safety.
+- Filter and rescale molecular transition dataframes (sub-manifold truncation).
+- Initialize molecule and state objects for different species (CaH, CaOH).
+"""
+
 import numpy as np
+import pandas as pd
+from typing import List, Dict, Union, Tuple, Any
 from molecules.molecule import Molecule, CaH, CaOH, CaH_dm2, CaOH_dm2
 from QLS.state_dist import States
 
 
-
-
-def validate_laser_configs(laser_configs):
+def validate_laser_configs(laser_configs: List[Dict[str, Any]]) -> bool:
     """
-    Validate structure and types of each pulse configuration in laser_configs.
+    Validates the structure and data types of the pulse configuration list.
+
+    This function ensures that each dictionary in the list contains the 
+    required physical parameters and that they adhere to the expected 
+    types (numpy arrays, bools, floats, etc.).
+
+    Parameters
+    ----------
+    laser_configs : list of dict
+        A list or tuple where each element is a dictionary defining a pulse.
+
+    Returns
+    -------
+    bool
+        True if all configurations are valid.
+
+    Raises
+    ------
+    TypeError
+        If the container or internal values have incorrect types.
+    ValueError
+        If required keys are missing or values are out of bounds.
     """
 
     if not isinstance(laser_configs, (list, tuple)):
@@ -27,20 +57,17 @@ def validate_laser_configs(laser_configs):
         if not isinstance(pulse, dict):
             raise TypeError(f"Pulse {idx} is not a dictionary.")
 
-        # ---- Check required keys ----
         missing_keys = required_keys - pulse.keys()
         if missing_keys:
             raise ValueError(
                 f"Pulse {idx} is missing required keys: {missing_keys}"
             )
 
-        # ---- is_minus ----
         if not isinstance(pulse["is_minus"], bool):
             raise TypeError(
                 f"Pulse '{pulse['name']}': 'is_minus' must be True or False."
             )
 
-        # ---- times ----
         if not isinstance(pulse["times"], np.ndarray):
             raise TypeError(
                 f"Pulse '{pulse['name']}': 'times' must be a numpy array."
@@ -56,19 +83,16 @@ def validate_laser_configs(laser_configs):
                 f"Pulse '{pulse['name']}': 'times' must contain at least 2 elements."
             )
 
-        # ---- laser_detuning ----
         if not isinstance(pulse["laser_detuning"], (float, int)):
             raise TypeError(
                 f"Pulse '{pulse['name']}': 'laser_detuning' must be a float."
             )
 
-        # ---- rabi_rate ----
         if not isinstance(pulse["rabi_rate"], (float, int)):
             raise TypeError(
                 f"Pulse '{pulse['name']}': 'rabi_rate' must be a float."
             )
 
-        # ---- raman_config ----
         if pulse["raman_config"] not in ("dm1", "dm2"):
             raise ValueError(
                 f"Pulse '{pulse['name']}': 'raman_config' must be 'dm1' or 'dm2'."
@@ -77,11 +101,35 @@ def validate_laser_configs(laser_configs):
     return True
 
 
-def cut_trans_df(transitions_in_j, j_val, keep_sub_manifold_levels):
-    rescaled_index = int(np.sum([2*(2*j+1) for j in range(j_val)]))
+def cut_trans_df(
+    transitions_in_j: pd.DataFrame, 
+    j_val: int, 
+    keep_sub_manifold_levels: int
+) -> pd.DataFrame:
+    """
+    Truncates and rescales a transition dataframe to keep only specific sub-levels.
+
+    This is used to reduce Hilbert space dimensionality for high J manifolds 
+    by selecting a subset of levels from the upper and lower manifolds.
+
+    Parameters
+    ----------
+    transitions_in_j : pd.DataFrame
+        Dataframe containing all transitions within a specific J manifold.
+    j_val : int
+        The rotational quantum number J.
+    keep_sub_manifold_levels : int
+        The number of internal states to keep for each manifold.
+
+    Returns
+    -------
+    pd.DataFrame
+        A new dataframe with filtered and rescaled indices.
+    """
+    rescaled_index = int(np.sum([2 * (2 * j + 1) for j in range(j_val)]))
     df = transitions_in_j.copy()
 
-    m_len = 2*j_val + 1
+    m_len = 2 * j_val + 1
 
     if m_len <= keep_sub_manifold_levels:
         return df 
@@ -103,12 +151,44 @@ def cut_trans_df(transitions_in_j, j_val, keep_sub_manifold_levels):
         df_filtered["index2"] = df_filtered["index2"] + rescaled_index
 
         return df_filtered
+    
 
 
-
-def initialize_molecule(molecule_type, b_field_gauss, j_max, temperature):
+def initialize_molecule(
+    molecule_type: str, 
+    b_field_gauss: float, 
+    j_max: int, 
+    temperature: float
+) -> Tuple[Molecule, States, Molecule, States]:
     """
-    Factory function per inizializzare la molecola corretta.
+    Factory function to initialize molecule data and state distributions.
+
+    Parameters
+    ----------
+    molecule_type : str
+        The type of molecule ('CaH' or 'CaOH').
+    b_field_gauss : float
+        External magnetic field in Gauss.
+    j_max : int
+        Maximum rotational quantum number for the basis set.
+    temperature : float
+        Rotational temperature of the sample.
+
+    Returns
+    -------
+    mo : Molecule
+        Main molecule data object.
+    states : States
+        Standard state distribution object.
+    mo_dm2 : Molecule
+        Molecule data object specifically for delta_m=2 transitions.
+    states_dm2 : States
+        State distribution object for dm2 transitions.
+
+    Raises
+    ------
+    ValueError
+        If an unsupported molecule type is specified.
     """
 
     if molecule_type == "CaH":
@@ -129,16 +209,12 @@ def initialize_molecule(molecule_type, b_field_gauss, j_max, temperature):
         b_field_gauss=b_field_gauss,
         j_max=j_max
     )
-
     states = States(mo, temperature)
 
     mo_dm2 = MoleculeDM2Class.create_molecule_data_dm2(
         b_field_gauss=b_field_gauss,
         j_max=j_max
     )
-
     states_dm2 = States(mo_dm2, temperature)
 
     return mo, states, mo_dm2, states_dm2
-
-

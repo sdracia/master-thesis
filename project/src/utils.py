@@ -200,45 +200,53 @@ def plot_state_dist(molecule, j: int) -> None:
     """
     states_in_j = molecule.state_df.loc[molecule.state_df["j"] == j]
     transitions_in_j = molecule.transition_df[molecule.transition_df["j"] == j]
-
     m = states_in_j["m"].to_numpy()
     energies = states_in_j["zeeman_energy_khz"].to_numpy()
+
     state_dist = states_in_j["state_dist"].to_numpy()
-    state_dist /= np.sum(state_dist)
+    state_dist = state_dist / np.sum(state_dist)
+
+    colors = state_dist
 
     fig, ax = plt.subplots(figsize=(12, 8))
-    for mi, ei, ci in zip(m, energies, state_dist):
+    for mi, ei, ci in zip(m, energies, colors):
         ax.hlines(ei, mi - 0.3, mi + 0.3, colors=plt.cm.plasma(ci), linewidth=3)
 
     ax.set_xlabel("m")
     ax.set_ylabel("Zeeman energy (kHz)")
     ax.set_title(f"Zeeman energies of all states in j={j}, B={molecule.b_field_gauss} G")
 
-    # Colorbar
     cbar = fig.colorbar(matplotlib.cm.ScalarMappable(norm=matplotlib.colors.Normalize(vmin=0, vmax=1), cmap="plasma"), ax=ax)
     cbar.set_label("spin")
 
     ax.set_xlim(-j-1, j+1)
-    ax.set_xticks([i+0.5 for i in range(-j-1, j+1)])
+    ax.set_xticks([i+0.5 for i in range(-j - 1, j + 1)])
 
-    # Draw arrows for transitions
+
+    # plot the difference between neibouring states on arrows conecting them
     for transition in transitions_in_j.itertuples():
-        m1, xi1, m2, xi2 = transition.m1, transition.xi1, transition.m2, transition.xi2
-        energy1 = molecule.state_df.loc[(molecule.state_df["j"]==j) & (molecule.state_df["m"]==m1) & (molecule.state_df["xi"]==xi1)].zeeman_energy_khz.iloc[0]
-        energy2 = molecule.state_df.loc[(molecule.state_df["j"]==j) & (molecule.state_df["m"]==m2) & (molecule.state_df["xi"]==xi2)].zeeman_energy_khz.iloc[0]
+        m1 = transition.m1
+        xi1 = transition.xi1
+        energy1 = molecule.state_df.loc[(molecule.state_df["j"] == j) & (molecule.state_df["m"] == m1) & (molecule.state_df["xi"] == xi1)].iloc[0].zeeman_energy_khz
+        m2 = transition.m2
+        xi2 = transition.xi2
+        energy2 = molecule.state_df.loc[(molecule.state_df["j"] == j) & (molecule.state_df["m"] == m2) & (molecule.state_df["xi"] == xi2)].iloc[0].zeeman_energy_khz
         energy_diff = transition.energy_diff
         coupling = transition.coupling
         ax.annotate(
-            "",
-            xy=(float(m1)-1.0, float(energy1) + float(energy_diff)),
+            "", 
+            xy=(float(m1)-1.0, float(energy1) + float(energy_diff)), 
             xytext=(float(m1), float(energy1)),
             arrowprops=dict(arrowstyle='<->', color='gray', lw=1)
         )
-        ax.text((3*m1 + m2)/4 - 0.5, (3*energy1 + energy2)/4, f"{energy_diff:.2f} kHz", fontsize=8, color="gray")
-        ax.text((3*m1 + m2)/4 - 0.5, (3*energy1 + energy2)/4 - 0.9, f"{coupling:.2f}", fontsize=8, color="red")
+        # add the energy difference as text on the arrow
+        ax.text((3*m1 + m2) / 4.0 -0.5, (3*energy1 + energy2) / 4.0, f"{energy_diff:.2f} kHz", fontsize=8, color="gray")
+        # add the coupling strength as text on the arrow
+        ax.text((3*m1 + m2) / 4.0 -0.5, (3*energy1 + energy2) / 4.0 - 0.9, f"{coupling:.2f}", fontsize=8, color="red")
 
     plt.show()
     plt.close()
+
 
 
 def heatmap_state_pop(dataframe_molecule, j_max: int, normalize: bool = True) -> np.ndarray:

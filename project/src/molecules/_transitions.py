@@ -103,12 +103,10 @@ def init_transition_dataframe(self) -> None:
             # ------------------------------------------
             if xi1:  # Xi = +
                 index2 = states_index[index - m_len]
+                state2 = states_array[index - m_len]
             else:    # Xi = -
                 index2 = states_index[index + m_len - 2]
-
-            state2 = states_array[
-                index - m_len if xi1 else index + m_len - 2
-            ]
+                state2 = states_array[index + m_len - 2]
 
             m2 = state2[1]
             xi2 = state2[2]
@@ -123,6 +121,7 @@ def init_transition_dataframe(self) -> None:
             transition_list.append(
                 [j, m1, xi1, m2, xi2, index1, index2, energy_diff, coupling]
             )
+
 
     self.transition_df = pd.DataFrame(
         transition_list,

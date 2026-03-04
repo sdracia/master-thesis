@@ -1,26 +1,68 @@
+"""
+Molecule data input/output routines.
+
+These functions provide class methods to:
+- Load molecule state and transition data from CSV files.
+- Compute molecule data if files do not exist.
+- Save molecule data in a 'molecule_data' directory in the
+  current or parent directories.
+
+Separate routines exist for standard and DM2-specific data.
+"""
+
 from pathlib import Path
 import pandas as pd
 
 
 def read_molecule_data(cls, b_field_gauss: float, j_max: int, gj_list: list[float] = None, cij_list: list[float] = None):
     """
-    Load the molecule data from the file. If the file does not exist, returns an error.
+    Load molecule state and transition data from CSV files.
+
+    Parameters
+    ----------
+    cls : type
+        Molecule class (CaH, CaOH, etc.)
+    b_field_gauss : float
+        Magnetic field in Gauss
+    j_max : int
+        Maximum rotational quantum number to consider
+    gj_list : list[float], optional
+        List of g-factors for different J
+    cij_list : list[float], optional
+        List of coupling constants for different J
+
+    Returns
+    -------
+    instance
+        Molecule instance with state_df and transition_df populated.
     """
     new_instance = cls(b_field_gauss, j_max, gj_list, cij_list)
     states_file = Path(f"molecule_data/{cls.name}_B[{b_field_gauss:.2f}]_Jmax[{j_max}]_states.csv")
     transitions_file = Path(f"molecule_data/{cls.name}_B[{b_field_gauss:.2f}]_Jmax[{j_max}]_transitions.csv")
 
-
     if states_file.exists() and transitions_file.exists():
         new_instance.state_df = pd.read_csv(states_file)
         new_instance.transition_df = pd.read_csv(transitions_file)
     else:
-        print("The molecule data do not exist.'\n' Create the new molecule with class method create_molecule_data")
+        print(
+            "Molecule data do not exist.\n"
+            "Create the molecule using the class method `create_molecule_data`."
+        )
     return new_instance
+
 
 def create_molecule_data(cls, b_field_gauss: float, j_max: int, gj_list: list[float] = None, cij_list: list[float] = None):
     """
-    Calculate the molecule data given the input parameters.
+    Calculate and save molecule data (states + transitions) given input parameters.
+
+    Parameters
+    ----------
+    Same as `read_molecule_data`.
+
+    Returns
+    -------
+    instance
+        Molecule instance with state_df and transition_df populated.
     """
     new_instance = cls(b_field_gauss, j_max, gj_list, cij_list)
     new_instance.init_states()
@@ -29,28 +71,30 @@ def create_molecule_data(cls, b_field_gauss: float, j_max: int, gj_list: list[fl
     return new_instance
 
 
-
-
 def read_molecule_data_dm2(cls, b_field_gauss: float, j_max: int, gj_list: list[float] = None, cij_list: list[float] = None):
     """
-    Load the molecule data from the file. If the file does not exist, returns an error.
+    Load DM2 molecule data from CSV files (states + DM2-specific transitions).
+
+    Same behavior as `read_molecule_data` but for DM2 variants.
     """
     new_instance = cls(b_field_gauss, j_max, gj_list, cij_list)
     states_file = Path(f"molecule_data/{cls.name}_B[{b_field_gauss:.2f}]_Jmax[{j_max}]_states.csv")
     transitions_file = Path(f"molecule_data/{cls.name}_B[{b_field_gauss:.2f}]_Jmax[{j_max}]_transitions.csv")
 
-
     if states_file.exists() and transitions_file.exists():
         new_instance.state_df = pd.read_csv(states_file)
         new_instance.transition_df = pd.read_csv(transitions_file)
     else:
-        print("The molecule data do not exist.'\n' Create the new molecule with class method create_molecule_data")
+        print(
+            "Molecule DM2 data do not exist.\n"
+            "Create the molecule using the class method `create_molecule_data_dm2`."
+        )
     return new_instance
 
 
 def create_molecule_data_dm2(cls, b_field_gauss: float, j_max: int, gj_list: list[float] = None, cij_list: list[float] = None):
     """
-    Calculate the molecule data given the input parameters.
+    Calculate and save DM2 molecule data (states + DM2 transitions) for given parameters.
     """
     new_instance = cls(b_field_gauss, j_max, gj_list, cij_list)
     new_instance.init_states()
@@ -59,23 +103,18 @@ def create_molecule_data_dm2(cls, b_field_gauss: float, j_max: int, gj_list: lis
     return new_instance
 
 
-
-
-
-# def save_data(self):
-#     self.state_df.to_csv(f"molecule_data/{self.name}_B[{self.b_field_gauss:.2f}]_Jmax[{self.j_max}]_states.csv", index=False)
-#     self.transition_df.to_csv(f"molecule_data/{self.name}_B[{self.b_field_gauss:.2f}]_Jmax[{self.j_max}]_transitions.csv", index=False)
-
-
-
-
 def save_data(self):
     """
-    Save the molecule data (states + transitions) inside the nearest 'molecule_data' folder 
-    found by going up the directory tree from the current working directory.
+    Save molecule data (states + transitions) in the nearest 'molecule_data' folder
+    found by searching from the current working directory upward.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no 'molecule_data' directory is found in current or parent directories.
     """
-    current_path = Path.cwd()  # directory da cui è lanciato il notebook
-    
+    current_path = Path.cwd()
+
     for parent in [current_path] + list(current_path.parents):
         data_dir = parent / "molecule_data"
         if data_dir.is_dir():

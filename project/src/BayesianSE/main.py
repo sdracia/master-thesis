@@ -10,7 +10,7 @@ from BayesianSE._utils import cleaning_convergence
 from BayesianSE._noise_models import var_misfreq
 from BayesianSE._run_manager import init_new_run
 
-from BayesianSE._run_manager import save_metadata
+from BayesianSE._run_manager import save_metadata, save_results
 
 
 
@@ -225,6 +225,8 @@ def run_bayesian_state_estimation(molecule=None, molecule_type="CaOH", temperatu
           false_positive_rate, false_negative_rate, noise_params, seed, laser_miscalibration, seed_miscalibration,
           noise_params_estim, laser_miscalibration_estim, pop_fit, N, num_updates,
           block_steps, type_block, apply_pumping, marginalization, false_rates, save_data, only_total, max_excitation)
+    
+    save_results(results)
     
     return results
 

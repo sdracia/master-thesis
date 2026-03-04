@@ -1,3 +1,10 @@
+"""
+Plot Raman coupling coefficients between Zeeman sublevels for molecular transitions.
+
+This module provides a function to visualize both signed and absolute coupling 
+coefficients for different J manifolds, with optional filtering by Xi sub-manifold.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -13,6 +20,27 @@ def plot_couplings(
     xi2_filter=False,
     save_name="coupling_plot.svg"
 ):
+    """
+    Plot the Raman coupling coefficients between Zeeman levels for two molecular instances.
+
+    Parameters
+    ----------
+    mo1 : object
+        First molecule instance containing a 'transition_df' dataframe.
+    mo2 : object
+        Second molecule instance containing a 'transition_df' dataframe.
+    j_max : int
+        Maximum J manifold to plot.
+    molecule_type : str, optional
+        Type of molecule, either 'CaOH' or 'CaH'. Determines J step. Default is 'CaOH'.
+    xi1_filter : bool, optional
+        Filter for initial Xi sub-manifold (False = upper, True = lower). Default is False.
+    xi2_filter : bool, optional
+        Filter for final Xi sub-manifold (False = upper, True = lower). Default is False.
+    save_name : str, optional
+        Filename to save the figure. Default is "coupling_plot.svg".
+    """
+
 
     if molecule_type.lower() == "caoh":
         j_step = 5

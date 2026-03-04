@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import json
 
 CURRENT_RUN_PATH = None
 
@@ -109,3 +110,28 @@ def save_metadata(molecule_type, temperature, b_field_gauss, j_max, rabi_by_j, d
             f.write(f"{key}: {value}\n")
 
     print(f"Run metadata saved at: {metadata_path}")
+
+
+
+def save_results(results, filename="results.json"):
+    """
+    Save the results dictionary in JSON format inside the current run folder.
+    """
+
+    global CURRENT_RUN_PATH
+
+    if CURRENT_RUN_PATH is None:
+        raise RuntimeError("Run folder not initialized. Call init_new_run() first.")
+
+    results_path = CURRENT_RUN_PATH / filename
+
+    try:
+        with open(results_path, "w") as f:
+            json.dump(results, f, indent=4)
+    except TypeError as e:
+        raise TypeError(
+            "Results dictionary contains non-JSON-serializable objects. "
+            "Convert numpy arrays to lists or floats before saving."
+        ) from e
+
+    print(f"Run results saved at: {results_path}")

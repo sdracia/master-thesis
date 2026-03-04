@@ -197,7 +197,7 @@ def meas_sensitivity_heatmap(Estimator, final_index, initial_index, figname = "m
     cbar.ax.tick_params(labelsize=18)
 
     # Etichette e titolo
-    ax.set_xlabel(r"$J$ signature transition", fontsize=24)
+    ax.set_xlabel(r"$J$ rotational manifold", fontsize=24)
     ax.set_ylabel(r"J measurement pulse $\mu_J^{+}$", fontsize=24)
     if title is None:
         title = "Measurement sensitivity"

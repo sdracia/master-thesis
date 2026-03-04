@@ -1,12 +1,18 @@
+"""
+Module for computing and plotting excitation spectra of molecular ions.
+
+This module includes:
+- Calculation of excitation probabilities for a molecule given laser parameters.
+- Generation of the full spectrum with optional experimental imperfections.
+- Functions to visualize spectra before and after pumping sequences.
+- Handles noise, laser miscalibration, and false positives.
+"""
+
 import numpy as np
-from molecules.molecule import CaOH, Molecule, CaH
-from scipy.constants import h, k
-from scipy.sparse import csr_array, sparray
-from typing import Tuple, Optional, NamedTuple
-from typing import List, Dict
+from molecules.molecule import CaOH, Molecule
+from typing import Tuple, Optional, Dict
 import exp_imperfections as imp
 import matplotlib.pyplot as plt
-import QLS.state_dist as state_dist
 import QLS.pumping as pumping
 from saving import save_figure_in_images
 
@@ -20,72 +26,104 @@ def get_excitation_probabilities(
     coherence_time_us: float = 100.0,
     is_minus: bool = True,
     noise_params: Dict[str, Dict[str, float]] = None,
-    seed: int = None,
+    seed: Optional[int] = None,
     laser_miscalibration: Dict[str, Dict[str, float]] = None, 
-    seed_miscalibration: int = None
+    seed_miscalibration: Optional[int] = None
 ) -> np.ndarray:
-    """Returns the excitation probabilities for given frequency and other parameters
-
-    Args:
-        molecule (Molecule): The molecule to calculate the excitation probabilities for
-        frequency (float): The frequency of the excitation pulse in MHz
-        duration_us (float): The duration of the excitation pulse in microseconds
-        rabi_rate_mhz (float): The Rabi rate in MHz
-        dephased (bool): If True, the excitation is dephased
-        coherence_time_us (float): The coherence time in us for rabi flopping
-        is_minus (bool): If True, the excitation is for dm = -1
-    Returns:
-        np.ndarray: The excitation probabilities for each state
     """
+    Returns the excitation probabilities for a molecule given a laser pulse.
 
+    Parameters
+    ----------
+    molecule : Molecule
+        The molecule to calculate the excitation probabilities for.
+    frequency : float
+        The Raman difference frequency of the excitation pulse in MHz.
+    duration_us : float
+        The duration of the excitation pulse in microseconds.
+    rabi_rate_mhz : float
+        The Rabi rate in MHz.
+    dephased : bool, optional
+        If True, the excitation is dephased. Default is False.
+    coherence_time_us : float, optional
+        The coherence time for Rabi flopping in microseconds. Default is 100.
+    is_minus : bool, optional
+        If True, calculates Δm = -1 transitions. Default is True.
+    noise_params : dict, optional
+        Dictionary specifying noise parameters for frequency and Rabi rate.
+    seed : int, optional
+        Seed for random noise.
+    laser_miscalibration : dict, optional
+        Dictionary specifying laser miscalibration parameters.
+    seed_miscalibration : int, optional
+        Seed for miscalibration noise.
 
+    Returns
+    -------
+    np.ndarray
+        The excitation probabilities for each molecular state.
+    """
     if laser_miscalibration is None:
         laser_miscalibration = {}
 
     if "frequency" in laser_miscalibration:
-        frequency = imp.apply_noise(frequency, laser_miscalibration["frequency"]["type"], laser_miscalibration["frequency"]["level"], seed_miscalibration)
+        frequency = imp.apply_noise(
+            frequency,
+            laser_miscalibration["frequency"]["type"],
+            laser_miscalibration["frequency"]["level"],
+            seed_miscalibration
+        )
     if "rabi_rate" in laser_miscalibration:
-        rabi_rate_mhz = imp.apply_noise(rabi_rate_mhz, laser_miscalibration["rabi_rate"]["type"], laser_miscalibration["rabi_rate"]["level"], seed_miscalibration)
-
+        rabi_rate_mhz = imp.apply_noise(
+            rabi_rate_mhz,
+            laser_miscalibration["rabi_rate"]["type"],
+            laser_miscalibration["rabi_rate"]["level"],
+            seed_miscalibration
+        )
 
     if noise_params is None:
         noise_params = {}
 
-    # Applicare rumore separato per ogni parametro se specificato
+    # Apply noise to frequency and Rabi rate if specified
     if "frequency" in noise_params:
-        frequency = imp.apply_noise(frequency, noise_params["frequency"]["type"], noise_params["frequency"]["level"], seed)
+        frequency = imp.apply_noise(
+            frequency,
+            noise_params["frequency"]["type"],
+            noise_params["frequency"]["level"],
+            seed
+        )
     if "rabi_rate" in noise_params:
-        rabi_rate_mhz = imp.apply_noise(rabi_rate_mhz, noise_params["rabi_rate"]["type"], noise_params["rabi_rate"]["level"], seed)
-
+        rabi_rate_mhz = imp.apply_noise(
+            rabi_rate_mhz,
+            noise_params["rabi_rate"]["type"],
+            noise_params["rabi_rate"]["level"],
+            seed
+        )
 
     state_exc_probs = np.zeros(len(molecule.state_df))
 
+    # Calculate detunings for the transition
     if is_minus:
         detunings = 2 * np.pi * (frequency - molecule.transition_df["energy_diff"].to_numpy(dtype=float) * 1e-3)
     else:
         detunings = 2 * np.pi * (frequency + molecule.transition_df["energy_diff"].to_numpy(dtype=float) * 1e-3)
 
-
-    # detunings = 2 * np.pi * (frequency - molecule.transition_df["energy_diff"].to_numpy(dtype=float) * 1e-3)
     omegas = rabi_rate_mhz * molecule.transition_df["coupling"].to_numpy(dtype=float)
 
+    # Calculate excitation probabilities with or without dephasing
     if dephased:
-        transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * ((1 - np.cos(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us) * np.exp(-duration_us / coherence_time_us)) / 2)
+        transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * (
+            (1 - np.cos(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us) * np.exp(-duration_us / coherence_time_us)) / 2
+        )
     else:
-        transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * np.sin(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us / 2) ** 2
+        transition_exc_probs = omegas**2 / (omegas**2 + detunings**2) * \
+            np.sin(np.sqrt(omegas**2.0 + detunings**2.0) * duration_us / 2) ** 2
 
-    if is_minus:
-        # state1 --> state2
-        states_index = molecule.transition_df["index1"].to_numpy(dtype=int)
-    else:
-        # state2 --> state1
-        states_index = molecule.transition_df["index2"].to_numpy(dtype=int)
-
+    states_index = molecule.transition_df["index1"].to_numpy(dtype=int) if is_minus else molecule.transition_df["index2"].to_numpy(dtype=int)
     for i in range(len(molecule.transition_df)):
         state_exc_probs[states_index[i]] += transition_exc_probs[i]
 
     return state_exc_probs
-
 
 
 def get_spectrum(
@@ -99,31 +137,63 @@ def get_spectrum(
     coherence_time_us: float = 100.0,
     is_minus: bool = True,
     noise_params: Dict[str, Dict[str, float]] = None,
-    seed: int = None,
+    seed: Optional[int] = None,
     laser_miscalibration: Dict[str, Dict[str, float]] = None,   
-    seed_miscalibration: int = None,
+    seed_miscalibration: Optional[int] = None,
     false_positive_rate: float = 0.0,
     type_false_positive: str = "uniform"
-
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Returns the spectrum for given parameters
+    """
+    Returns the excitation spectrum for a molecule over a frequency range.
 
-    Args:
-        molecule (Molecule): The molecule to calculate the spectrum for
-        duration_us (float): The duration of the excitation pulse in microseconds
-        rabi_rate_mhz (float): The Rabi rate in MHz
-        max_frequency_mhz (float): The maximum frequency in MHz
-        scan_points (int): The number of scan points
-        dephased (bool): If True, the excitation is dephased
-        is_minus (bool): If True, the excitation is for dm = -1; otherwise, dm = +1
-    Returns:
-        np.ndarray: The excitation probabilities for each frequency
+    Parameters
+    ----------
+    molecule : Molecule
+        The molecule to calculate the spectrum for.
+    state_distribution : np.ndarray
+        Population distribution of the states.
+    duration_us : float
+        Duration of the excitation pulse in microseconds.
+    rabi_rate_mhz : float
+        Rabi rate in MHz.
+    max_frequency_mhz : float
+        Maximum frequency for the scan in MHz.
+    scan_points : int
+        Number of frequency points.
+    dephased : bool, optional
+        If True, includes dephasing. Default is True.
+    coherence_time_us : float, optional
+        Coherence time in microseconds. Default is 100.
+    is_minus : bool, optional
+        If True, calculates Δm = -1 transitions. Default is True.
+    noise_params : dict, optional
+        Noise parameters for frequency and Rabi rate.
+    seed : int, optional
+        Seed for noise.
+    laser_miscalibration : dict, optional
+        Laser miscalibration parameters.
+    seed_miscalibration : int, optional
+        Seed for miscalibration noise.
+    false_positive_rate : float, optional
+        Probability of false excitation. Default is 0.0.
+    type_false_positive : str, optional
+        Type of false positive noise. Default is "uniform".
+
+    Returns
+    -------
+    frequencies : np.ndarray
+        Array of frequencies scanned.
+    exc_probs : np.ndarray
+        Excitation probabilities corresponding to each frequency.
     """
     frequencies = np.linspace(-max_frequency_mhz, max_frequency_mhz, scan_points)
     exc_probs = [
         np.dot(
-            get_excitation_probabilities(molecule, frequency, duration_us, rabi_rate_mhz, dephased, coherence_time_us, is_minus, noise_params, seed, laser_miscalibration, seed_miscalibration),
-            state_distribution,
+            get_excitation_probabilities(
+                molecule, frequency, duration_us, rabi_rate_mhz, dephased, coherence_time_us, is_minus,
+                noise_params, seed, laser_miscalibration, seed_miscalibration
+            ),
+            state_distribution
         )
         for frequency in frequencies
     ]
@@ -133,52 +203,76 @@ def get_spectrum(
     if false_positive_rate > 0.0:
         exc_probs = imp.false_positive_excitation(frequencies, exc_probs, false_positive_rate, type_false_positive)
 
-    # Convert to numpy array
     frequencies = np.array(frequencies)
     exc_probs = np.array(exc_probs)
-
-    # Ensure the excitation probabilities are non-negative
     if np.any(exc_probs < 0):
         raise ValueError("Excitation probabilities must be non-negative")
-    
-    # Ensure the excitation probabilities are in the range [0, 1]
     exc_probs = np.clip(exc_probs, 0, 1)
 
     return frequencies, exc_probs
 
 
+def unpumped_pumped(
+    b_field_gauss: float,
+    j_max: int,
+    cah1: Molecule,
+    states,
+    spectrum_list: dict,
+    pump_sequences,
+    scan_direction: str = "left",
+    filename: Optional[str] = None,
+    noise_params: Optional[dict] = None,
+    laser_miscalibration: Optional[dict] = None,
+    seed_miscalibration: Optional[int] = None,
+    false_positive_rate: float = 0.0,
+    y_lim: Optional[float] = None
+):
+    """
+    Plot the molecular spectrum before and after pumping sequences.
 
-
-
-def unpumped_pumped(b_field_gauss, j_max, cah1, states, spectrum_list, pump_sequences, scan_direction = "left", filename = None, noise_params=None, laser_miscalibration=None, seed_miscalibration=None, false_positive_rate=0.0, y_lim=None):
-
-    # I compute the states1. I do so because i need states1.dist,          J|m|csi|...|states1.dist
-                                                                        #  .|.| . |   |     .
-                                                                        #  .|.| . |   |     .
-                                                                        #  .|.| . |   |     .
+    Parameters
+    ----------
+    b_field_gauss : float
+        Magnetic field in Gauss.
+    j_max : int
+        Maximum rotational level.
+    cah1 : Molecule
+        Molecule object (CaH or CaOH).
+    states : object
+        Object containing state distribution (`states.dist`) and `j_distribution()` method.
+    spectrum_list : dict
+        Dictionary with spectrum parameters (duration_us, rabi_rate_mhz, max_frequency_mhz, scan_points, etc.).
+    pump_sequences : list or dict
+        Pumping sequences specifying frequency, number of pulses, duration, rabi_rate, dephased, is_minus.
+    scan_direction : str, optional
+        "left", "right", or "both". Default is "left".
+    filename : str, optional
+        Filename to save the figure. Default is None.
+    noise_params : dict, optional
+        Noise parameters for pumping.
+    laser_miscalibration : dict, optional
+        Laser miscalibration parameters.
+    seed_miscalibration : int, optional
+        Seed for miscalibration noise.
+    false_positive_rate : float, optional
+        Probability of false excitation. Default is 0.0.
+    y_lim : float, optional
+        Maximum value of y-axis. Default is None.
+    """
 
     if isinstance(pump_sequences, dict):
         pump_sequences = [pump_sequences]
 
-
-
-    # I take the transition_df. For each j (multiplet), i take the energy difference of the target distribution.
     signature_transitions = np.array([cah1.transition_df.loc[cah1.transition_df["j"]==j].iloc[0]["energy_diff"] * 1e-3 for j in range(1, cah1.j_max+1)])
 
 
-
-    # get_spectrum: it takes excitation probability (from get_excitation_probabilities) + states1.dist distribution (from States) and np.dot @ freq.
-    # Then repeats for the frequencies and returns both the frequencies and the results @ each freq.
-    # This returns the spectrum before pumping.
+    # Spectrum before pumping.
     frequencies, exc_probs1_before = get_spectrum(cah1, states.dist, **spectrum_list, 
-                                                           noise_params=noise_params, seed=None, laser_miscalibration=laser_miscalibration,
-                                                           seed_miscalibration=seed_miscalibration,
-                                                           false_positive_rate=false_positive_rate, type_false_positive="uniform")
+                                                  noise_params=noise_params, seed=None, laser_miscalibration=laser_miscalibration,
+                                                  seed_miscalibration=seed_miscalibration,
+                                                  false_positive_rate=false_positive_rate, type_false_positive="uniform")
 
-
-    # I update the state distribution (@ fixed j) with the exctiation matrix.
-    # I pump the system multiple times in order to better populate the molecule
-
+    # Pumping
     for seq in pump_sequences:
 
         pump_frequency_mhz = seq["frequency_mhz"]
@@ -195,14 +289,15 @@ def unpumped_pumped(b_field_gauss, j_max, cah1, states, spectrum_list, pump_sequ
 
 
     fig, ax = plt.subplots(figsize=(14, 8))
-    ax.plot(frequencies, exc_probs1_before, label = "Unpumped", linestyle = "-", color = "blue", linewidth=3)     # Plot before pumping
+    ax.plot(frequencies, exc_probs1_before, label = "Unpumped", linestyle = "-", color = "blue", linewidth=3)     
 
+    # Pumped spectrum
     frequencies, exc_probs1_after = get_spectrum(cah1, states.dist, **spectrum_list, 
-                                                           noise_params=noise_params, seed=None, laser_miscalibration=laser_miscalibration,
-                                                           seed_miscalibration=seed_miscalibration,
-                                                           false_positive_rate=false_positive_rate, type_false_positive="uniform")
+                                                 noise_params=noise_params, seed=None, laser_miscalibration=laser_miscalibration,
+                                                 seed_miscalibration=seed_miscalibration,
+                                                 false_positive_rate=false_positive_rate, type_false_positive="uniform")
 
-    ax.plot(frequencies, exc_probs1_after, label = f"Pumped", linestyle = "-", color = "orange", linewidth=3)      # Plot after pumping
+    ax.plot(frequencies, exc_probs1_after, label = f"Pumped", linestyle = "-", color = "orange", linewidth=3)      
 
 
 
@@ -260,26 +355,60 @@ def unpumped_pumped(b_field_gauss, j_max, cah1, states, spectrum_list, pump_sequ
     plt.show()
 
 
+def spectrum_w_wo_imperfections(
+    b_field_gauss: float,
+    j_max: int,
+    cah1: Molecule,
+    states,
+    spectrum_list: dict,
+    scan_direction: str = "left",
+    pump_sequences=None,
+    filename: Optional[str] = None,
+    noise_params: Optional[dict] = None,
+    laser_miscalibration: Optional[dict] = None,
+    seed_miscalibration: Optional[int] = None,
+    false_positive_rate: float = 0.0,
+    y_lim: Optional[float] = None
+):
+    """
+    Plot the molecular spectrum with and without experimental imperfections.
 
-
-
-def spectrum_w_wo_imperfections(b_field_gauss, j_max, cah1, states, spectrum_list, scan_direction = "left", pump_sequences = None, filename = None, noise_params=None, laser_miscalibration=None, seed_miscalibration=None, false_positive_rate=0.0, y_lim=None):
-
-    # I compute the states1. I do so because i need states1.dist,          J|m|csi|...|states1.dist
-                                                                        #  .|.| . |   |     .
-                                                                        #  .|.| . |   |     .
-                                                                        #  .|.| . |   |     .
+    Parameters
+    ----------
+    b_field_gauss : float
+        Magnetic field in Gauss.
+    j_max : int
+        Maximum rotational level.
+    cah1 : Molecule
+        Molecule object (CaH or CaOH).
+    states : object
+        Object containing state distribution (`states.dist`) and `j_distribution()` method.
+    spectrum_list : dict
+        Dictionary with spectrum parameters (duration_us, rabi_rate_mhz, max_frequency_mhz, scan_points, etc.).
+    scan_direction : str, optional
+        "left", "right", or "both". Default is "left".
+    pump_sequences : list or dict, optional
+        Pumping sequences specifying frequency, number of pulses, duration, rabi_rate, dephased, is_minus.
+    filename : str, optional
+        Filename to save the figure. Default is None.
+    noise_params : dict, optional
+        Noise parameters for pumping or laser miscalibration.
+    laser_miscalibration : dict, optional
+        Laser miscalibration parameters.
+    seed_miscalibration : int, optional
+        Seed for miscalibration noise.
+    false_positive_rate : float, optional
+        Probability of false excitation. Default is 0.0.
+    y_lim : float, optional
+        Maximum value of y-axis. Default is None.
+    """
 
     if pump_sequences is not None and isinstance(pump_sequences, dict):
         pump_sequences = [pump_sequences]
 
-
-    # I take the transition_df. For each j (multiplet), i take the energy difference of the target distribution.
     signature_transitions = np.array([cah1.transition_df.loc[cah1.transition_df["j"]==j].iloc[0]["energy_diff"] * 1e-3 for j in range(1, cah1.j_max+1)])
 
-
-    # I update the state distribution (@ fixed j) with the exctiation matrix.
-    # I pump the system multiple times in order to better populate the molecule
+    # Pumping if specified
     if pump_sequences is not None:
         for seq in pump_sequences:
 
@@ -296,10 +425,7 @@ def spectrum_w_wo_imperfections(b_field_gauss, j_max, cah1, states, spectrum_lis
                                                         seed_miscalibration=seed_miscalibration).dot(states.dist)
 
 
-    # get_spectrum: it takes excitation probability (from get_excitation_probabilities) + states1.dist distribution (from States) and np.dot @ freq.
-    # Then repeats for the frequencies and returns both the frequencies and the results @ each freq.
-    # This returns the spectrum before pumping.
-
+    # Spectrum with and without imperfections
     if laser_miscalibration is not None or noise_params is not None or false_positive_rate > 0.0:
         frequencies, exc_probs_imperfections = get_spectrum(molecule=cah1, state_distribution=states.dist, **spectrum_list, 
                                                     noise_params=noise_params, seed=None, laser_miscalibration=laser_miscalibration,
@@ -370,3 +496,4 @@ def spectrum_w_wo_imperfections(b_field_gauss, j_max, cah1, states, spectrum_lis
         save_figure_in_images(fig, "unpumpedcah.svg")
 
     plt.show()
+

@@ -1,14 +1,44 @@
+"""
+Module for Noise Modeling and Bayesian Performance Visualization.
+
+This module provides utilities to:
+- Calculate standard deviations for different noise models (Gaussian, Uniform).
+- Construct frequency distributions for Bayesian marginalization.
+- Visualize the final distributions of estimator variance and frequency 
+  miscalibration across successful and failed simulation runs.
+"""
+
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 import os
-
+from typing import Dict, Tuple, Optional, Any
 
 from ._run_manager import plot_bayesian_run
 
 
+def compute_sigma(
+    source: Optional[Dict[str, Any]], 
+    key: str, 
+    value: float
+) -> float:
+    """
+    Calculates the standard deviation (sigma) based on the specified noise model.
 
-def compute_sigma(source: dict, key: str, value: float):
+    Parameters
+    ----------
+    source : dict, optional
+        A dictionary containing noise settings (type and level).
+    key : str
+        The specific parameter to look up (e.g., 'frequency' or 'rabi_rate').
+    value : float
+        The nominal value of the parameter, used for relative noise scaling.
+
+    Returns
+    -------
+    float
+        The calculated standard deviation. Returns 0.0 if the type is unknown.
+    """
     entry = (source or {}).get(key, {})
     sigma_type = entry.get("type")
     level = entry.get("level", 0.0)
@@ -29,7 +59,6 @@ def compute_sigma(source: dict, key: str, value: float):
         return 0.0
 
 
-
 def build_detuning_distributions(
     frequency: float,
     rabi_rate: float,
@@ -37,12 +66,36 @@ def build_detuning_distributions(
     noise_params: dict,
     num_points: int = 1000,
     num_sigma: float = 5.0
-):
-    # Even though experimental imperfections can come also from the Rabi rate, we only consider the frequency, since they 
-    # are less problematic. The marginalization is performed on frequency only.
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Constructs a discretized frequency distribution for Bayesian marginalization.
 
+    Even though experimental imperfections can affect multiple parameters, 
+    marginalization is performed solely on the frequency axis as it is 
+    typically the dominant source of estimation error.
 
-    # --- FREQUENCY ---
+    Parameters
+    ----------
+    frequency : float
+        The central Raman frequency.
+    rabi_rate : float
+        The peak Rabi frequency.
+    laser_miscalibration : dict
+        Systematic miscalibration parameters.
+    noise_params : dict
+        Shot-to-shot noise parameters.
+    num_points : int, optional
+        Number of points in the discretized grid. Default is 1000.
+    num_sigma : float, optional
+        The range of the grid in units of total standard deviation. Default is 5.0.
+
+    Returns
+    -------
+    freq_grid : np.ndarray
+        The array of frequency points.
+    freq_probs : np.ndarray
+        The probability weights for each grid point, normalized to 1.
+    """
     sigma_freq = np.sqrt(
         compute_sigma(laser_miscalibration, "frequency", frequency)**2 +
         compute_sigma(noise_params, "frequency", frequency)**2
@@ -56,17 +109,34 @@ def build_detuning_distributions(
     
     dx_freq = freq_grid[1] - freq_grid[0]
     freq_pdf = norm.pdf(freq_grid, loc=frequency, scale=sigma_freq)
+    
     freq_probs = freq_pdf * dx_freq
     freq_probs /= freq_probs.sum()  
 
     return freq_grid, freq_probs
 
 
+def var_misfreq(
+    variance_by_label: Dict[str, Any], 
+    misfreq_by_label: Dict[str, Any], 
+    filename: str = "figure_variance_misfreq.svg"
+) -> None:
+    """
+    Generates histograms for the final variance and frequency miscalibration.
 
+    The data is categorized into 'Success' and 'Failure' based on a 
+    Cross Entropy threshold (-log(0.9)), which corresponds to a 
+    90% posterior probability of correctly identifying the state.
 
-
-def var_misfreq(variance_by_label, misfreq_by_label, filename="figure_variance_misfreq.svg"):
-
+    Parameters
+    ----------
+    variance_by_label : dict
+        Dictionary of variance values at the end of simulation runs.
+    misfreq_by_label : dict
+        Dictionary of frequency miscalibration values encountered.
+    filename : str, optional
+        The output filename. Default is "figure_variance_misfreq.svg".
+    """
     final_variance_below = []
     final_variance_above = []
     threshold = -np.log(0.9)
@@ -78,40 +148,33 @@ def var_misfreq(variance_by_label, misfreq_by_label, filename="figure_variance_m
             else:
                 final_variance_above.append(last_var)
 
-    max = np.max(final_variance_below + final_variance_above)
-    min = np.min(final_variance_below + final_variance_above)
-    # len = len(final_variance_below + final_variance_above)
-
-    bins = np.arange(min, max, (max-min)/100)
+    all_vars = final_variance_below + final_variance_above
+    max_v = np.max(all_vars)
+    min_v = np.min(all_vars)
+    bins_v = np.arange(min_v, max_v, (max_v - min_v) / 100)
 
     name, ext = os.path.splitext(filename)
-    filename_category = f"{name}_variance{ext}"
+    filename_var = f"{name}_variance{ext}"
 
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig_v, ax_v = plt.subplots(figsize=(7, 4))
+    ax_v.hist(final_variance_below, bins=bins_v, alpha=0.6, color="#1f77b4",
+              edgecolor='black', label="Success estimation")
+    ax_v.hist(final_variance_above, bins=bins_v, alpha=0.6, color="#ff7f0e",
+              edgecolor='black', label="Failure estimation")
 
-    ax.hist(final_variance_below, bins=bins, alpha=0.6, color="#1f77b4",
-            edgecolor='black', label="Success estimation")
-    ax.hist(final_variance_above, bins=bins, alpha=0.6, color="#ff7f0e",
-            edgecolor='black', label="Failure estimation")
+    ax_v.set_xlabel("Variance", fontsize=20)
+    ax_v.set_ylabel("Frequency", fontsize=20)
+    ax_v.set_title("Distribution of the final variance values", fontsize=25)
+    ax_v.legend(fontsize=20)
+    ax_v.grid(True, linestyle='--', alpha=0.4)
+    ax_v.tick_params(axis='both', labelsize=20, pad=8)
+    fig_v.tight_layout()
 
-    ax.set_xlabel("Variance", fontsize=20)
-    ax.set_ylabel("Frequency", fontsize=20)
-    ax.set_title("Distribution of the final variance values", fontsize=25)
-    ax.legend(fontsize=20)
-    ax.grid(True, linestyle='--', alpha=0.4)
-    ax.tick_params(axis='both', labelcolor="black", labelsize=20, pad = 8)
-
-
-    fig.tight_layout()
-
-    plot_bayesian_run(fig, filename_category)
-
+    plot_bayesian_run(fig_v, filename_var)
     plt.show()
-
 
     final_misfreq_below = []
     final_misfreq_above = []
-    threshold = -np.log(0.9)
 
     for label, curves in misfreq_by_label.items():
         for last_mis, cross_entropy in curves:
@@ -120,39 +183,29 @@ def var_misfreq(variance_by_label, misfreq_by_label, filename="figure_variance_m
             else:
                 final_misfreq_above.append(last_mis)
 
-    max = np.max(final_misfreq_below + final_misfreq_above)
-    min = np.min(final_misfreq_below + final_misfreq_above)
+    all_mis = final_misfreq_below + final_misfreq_above
+    max_m = np.max(all_mis)
+    min_m = np.min(all_mis)
 
-
-    if max == min:
+    if max_m == min_m:
         print("Simulation without miscalibration on frequency")
     else:   
-        bins = np.arange(min, max, (max-min)/100)
+        bins_m = np.arange(min_m, max_m, (max_m - min_m) / 100)
 
-        name, ext = os.path.splitext(filename)
-        filename_category = f"{name}_miscal_freq{ext}"
+        fig_m, ax_m = plt.subplots(figsize=(7, 4))
+        ax_m.hist(final_misfreq_below, bins=bins_m, alpha=0.6, color="#1f77b4",
+                  edgecolor='black', label="Success estimation")
+        ax_m.hist(final_misfreq_above, bins=bins_m, alpha=0.6, color="#ff7f0e",
+                  edgecolor='black', label="Failure estimation")
 
+        ax_m.set_xlabel("Raman frequency miscalibration (Hz)", fontsize=20)
+        ax_m.set_ylabel("Frequency", fontsize=20)
+        ax_m.set_title("Distribution of the miscalibration values", fontsize=25)
+        ax_m.legend(fontsize=20)
+        ax_m.grid(True, linestyle='--', alpha=0.4)
+        ax_m.tick_params(axis='both', labelsize=20, pad=8)
+        fig_m.tight_layout()
 
-        fig, ax = plt.subplots(figsize=(7, 4))
-
-        ax.hist(final_misfreq_below, bins=bins, alpha=0.6, color="#1f77b4",
-                edgecolor='black', label="Success estimation")
-        ax.hist(final_misfreq_above, bins=bins, alpha=0.6, color="#ff7f0e",
-                edgecolor='black', label="Failure estimation")
-
-        ax.set_xlabel("Raman frequency miscalibration (Hz)", fontsize=20)
-        ax.set_ylabel("Frequency", fontsize=20)
-        ax.set_title("Distribution of the miscalibration values", fontsize=25)
-        ax.legend(fontsize=20)
-        ax.grid(True, linestyle='--', alpha=0.4)
-        ax.tick_params(axis='both', labelcolor="black", labelsize=20, pad = 8)
-
-
-        fig.tight_layout()
-
-        name, ext = os.path.splitext(filename)
-        filename_category = f"{name}_misfreq{ext}"
-
-        plot_bayesian_run(fig, filename_category)
-        
+        filename_mis = f"{name}_misfreq{ext}"
+        plot_bayesian_run(fig_m, filename_mis)
         plt.show()

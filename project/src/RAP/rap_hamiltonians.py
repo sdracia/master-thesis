@@ -1,189 +1,207 @@
+"""
+Hamiltonian Module for Rapid Adiabatic Passage (RAP) Simulations.
+
+This module provides time-dependent Hamiltonian constructions for a 2-level 
+molecular system coupled to a motional mode. It includes models for:
+- Blue Sideband (BSB) transitions with Gaussian envelopes and frequency chirps.
+- Carrier transitions (no motional coupling).
+- Standard Rabi flopping (constant detuning).
+"""
+
 import numpy as np
 from qutip import *
+from typing import Any, Dict
 from RAP.rap_operators import RAP_sigmap_2
 
 
-
-
-def RAP_bsb_H_2levels(t, args) :
+def RAP_bsb_H_2levels(t: float, args: Dict[str, Any]) -> Qobj:
     """
-    > Time-dependent Hamiltonian for a 2-level molecule interacting with a BSB (blue sideband) laser.
+    Time-dependent Hamiltonian for a 2-level molecule interacting with a BSB laser.
 
-    Includes both resonant and optionally off-resonant carrier contributions. Time dependence comes from:
-    - Gaussian envelope in the Rabi rate,
-    - Time-dependent detuning.
+    The Hamiltonian accounts for a Blue Sideband transition where the pulse 
+    features a Gaussian intensity envelope and a linear frequency chirp (RAP). 
+    It can optionally include an off-resonant carrier contribution.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     t : float
-        Time during the simulation.
+        Current time step in the simulation.
     args : dict
-        Dictionary of parameters including trap frequency, Lamb-Dicke factor, detunings, etc.
+        Dictionary of physical parameters:
+        - 'n_motional' (int): Dimension of the motional Fock space.
+        - 'coupling' (float): Transition coupling constant.
+        - 'w_mol' (float): Molecular transition frequency.
+        - 'D' (float): Total frequency sweep range (chirp).
+        - 'T' (float): Interaction time (pulse center is at T/2).
+        - 'sigma' (float): Standard deviation of the Gaussian pulse envelope.
+        - 'rabi_rate' (float): Peak Rabi rate.
+        - 'laser_detuning' (float): Fixed laser detuning offset.
+        - 'off_resonant' (bool): Whether to include carrier interference.
+        - 'lamb_dicke' (float): Lamb-Dicke parameter (if off_resonant is True).
+        - 'trap_freq' (float): Motional trap frequency.
 
-    Returns:
-    --------
+    Returns
+    -------
     Qobj
-        Hamiltonian operator at time `t`.
+        The Hamiltonian operator at time t.
+
+    Raises
+    ------
+    ValueError
+        If off_resonant is True but lamb_dicke is not provided.
     """
-
-
-    n_motional = args['n_motional']     # number of motional states
-    j = args['j']                     # total angular momentum of the molecule
-    coupling = args['coupling']     # coupling constant of the transition
-    w_mol = args['w_mol']           # molecular transition frequency
+    # Extract structural and physical parameters
+    n_motional = args['n_motional']
+    j = args['j']
+    coupling = args['coupling']
+    w_mol = args['w_mol']
     final_time = args['final_time']
-    D = args['D']           
+    D = args['D']
     sigma = args['sigma']
-    T = args['T']     
-    lamb_dicke = args['lamb_dicke']    
-    off_resonant = args['off_resonant'] 
-    w_trap = args['trap_freq']     
+    T = args['T']
+    lamb_dicke = args.get('lamb_dicke')
+    off_resonant = args.get('off_resonant', False)
+    w_trap = args.get('trap_freq')
 
+    # Define Hilbert space operators
     sigma_plus_mol = tensor(RAP_sigmap_2(), qeye(n_motional))
     a = tensor(qeye(2), destroy(n_motional))
 
-    # Time dependent RAP variables
-    rr = args['rabi_rate']   # Rabi rate of the transition
-    rr = rr * np.exp(-(t - T/2)**2/(2*sigma**2))  
-    laser_detuning = args['laser_detuning']     # laser detuning   
+    # Time-dependent Rabi rate with Gaussian envelope
+    rr = args['rabi_rate']
+    rr = rr * np.exp(-(t - T/2)**2 / (2 * sigma**2))
+    
+    # Calculate detuning and time-dependent sweep (chirp)
+    laser_detuning = args['laser_detuning']
+    det_bsb = laser_detuning - w_mol
+    delta_t_bsb = (D / T) * (t - T / 2) + det_bsb
 
-    det_bsb = laser_detuning - w_mol      # detuning of the molecular transition
+    # Blue Sideband Hamiltonian term: sigma+ * a_dagger
+    H_term_bsb = sigma_plus_mol * a.dag() * np.exp(-1j * delta_t_bsb * t)
+    H_bsb = rr * np.abs(coupling) / 2 * (H_term_bsb + H_term_bsb.dag())
 
-    delta_t_bsb = D/T * (t - T/2) + det_bsb
-
-    H_term_bsb = sigma_plus_mol * a.dag() * np.exp(-1j*delta_t_bsb*t)
-
-    H_bsb = rr * np.abs(coupling) /2 * (H_term_bsb + H_term_bsb.dag())
-
+    # Include off-resonant carrier contribution if requested
     if off_resonant:
         if lamb_dicke is None:
             raise ValueError("lamb_dicke must be provided when off_resonant is True")
-        # Carrier off-resonant
-        det_carrier = laser_detuning - (- w_trap + w_mol)  
+            
+        # Carrier detuning relative to the motional sideband
+        det_carrier = laser_detuning - (-w_trap + w_mol)
+        delta_t_carrier = (D / T) * (t - T / 2) + det_carrier
 
-        delta_t_carrier = D/T * (t - T/2) + det_carrier
-
-        # CHECK THE SIGNS
-        H_term_carrier = sigma_plus_mol * np.exp(-1j*delta_t_carrier*t)
-        H_carrier = rr * np.abs(coupling) /2 / lamb_dicke * (H_term_carrier + H_term_carrier.dag())
+        # Carrier term is suppressed by the Lamb-Dicke factor (1/eta)
+        H_term_carrier = sigma_plus_mol * np.exp(-1j * delta_t_carrier * t)
+        H_carrier = (rr * np.abs(coupling) / 2 / lamb_dicke * 
+                     (H_term_carrier + H_term_carrier.dag()))
     
-        # return H_bsb + H_carrier
         return H_bsb + H_carrier
-    else:
-        return H_bsb 
+    
+    return H_bsb
 
 
-
-
-def RAP_carrier_H_2levels(t, args):
+def RAP_carrier_H_2levels(t: float, args: Dict[str, Any]) -> Qobj:
     """
-    > Time-dependent Hamiltonian for a 2-level molecule interacting with a carrier transition.
+    Time-dependent Hamiltonian for a 2-level molecule interacting with a carrier.
 
-    Like `RAP_bsb_H_2levels`, but without coupling to motion (i.e., no ladder operators for motional states).
+    This represents the RAP process strictly for the internal states without 
+    motional coupling (no phonon creation or annihilation).
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     t : float
-        Time during the simulation.
+        Current time step.
     args : dict
-        Dictionary of parameters for the RAP pulse and molecular level structure.
+        Dictionary of parameters (similar to RAP_bsb_H_2levels).
 
-    Returns:
-    --------
+    Returns
+    -------
     Qobj
-        Hamiltonian operator at time `t`.
+        The carrier Hamiltonian operator at time t.
     """
-
-
-    n_motional = args['n_motional']     # number of motional states
-    j = args['j']                     # total angular momentum of the molecule
-    coupling = args['coupling']     # coupling constant of the transition
-    w_mol = args['w_mol']           # molecular transition frequency
-    final_time = args['final_time']
-    D = args['D']           
+    n_motional = args['n_motional']
+    coupling = args['coupling']
+    w_mol = args['w_mol']
+    D = args['D']
     sigma = args['sigma']
-    T = args['T']           
+    T = args['T']
 
+    # Internal raising operator in the combined space
     sigma_plus_mol = tensor(RAP_sigmap_2(), qeye(n_motional))
-    a = tensor(qeye(2), destroy(n_motional))
 
-    # Time dependent RAP variables
-    rr = args['rabi_rate']   # Rabi rate of the transition
-    rr = rr * np.exp(-(t - T/2)**2/(2*sigma**2))  
-    laser_detuning = args['laser_detuning']     # laser detuning   
-
+    # Gaussian Rabi rate envelope
+    rr = args['rabi_rate']
+    rr = rr * np.exp(-(t - T/2)**2 / (2 * sigma**2))
+    
+    # Linear frequency sweep (RAP) logic
+    laser_detuning = args['laser_detuning']
     det_carrier = laser_detuning - w_mol
+    delta_t_carrier = (D / T) * (t - T / 2) + det_carrier
 
-    delta_t_carrier = D/T * (t - T/2) + det_carrier
-
-    # CHECK THE SIGNS
-    H_term_carrier = sigma_plus_mol * np.exp(-1j*delta_t_carrier*t)
-    H_carrier = rr * np.abs(coupling) /2 * (H_term_carrier + H_term_carrier.dag())
+    # Carrier term logic (no 'a' or 'a.dag()' operators)
+    H_term_carrier = sigma_plus_mol * np.exp(-1j * delta_t_carrier * t)
+    H_carrier = rr * np.abs(coupling) / 2 * (H_term_carrier + H_term_carrier.dag())
     
     return H_carrier
 
 
-
-def RAP_rabiflop_H_2levels(t, args):
+def RAP_rabiflop_H_2levels(t: float, args: Dict[str, Any]) -> Qobj:
     """
-    > Hamiltonian for Rabi flop (time-independent frequency, no chirp).
+    Hamiltonian for standard Rabi flopping (constant parameters).
 
-    Similar to `RAP_bsb_H_2levels`, but assumes constant detuning and no Gaussian envelope. Can include off-resonant carrier terms if specified.
+    Unlike the RAP Hamiltonians, this function assumes a constant detuning 
+    (no chirp) and a constant Rabi rate (no Gaussian envelope).
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     t : float
-        Time during the simulation.
+        Current time step.
     args : dict
-        Dictionary of parameters, including detuning and coupling strength.
+        Dictionary of parameters including 'off_resonant' carrier options.
 
-    Returns:
-    --------
+    Returns
+    -------
     Qobj
-        Hamiltonian operator at time `t`.
+        The Rabi flop Hamiltonian at time t.
+
+    Raises
+    ------
+    ValueError
+        If off_resonant is True but lamb_dicke is not provided.
     """
-
-
-    n_motional = args['n_motional']     # number of motional states
-    j = args['j']                     # total angular momentum of the molecule
-    coupling = args['coupling']     # coupling constant of the transition
-    w_mol = args['w_mol']           # molecular transition frequency
-    final_time = args['final_time']
-    D = args['D']           
+    n_motional = args['n_motional']
+    coupling = args['coupling']
+    w_mol = args['w_mol']
+    D = args['D']
     sigma = args['sigma']
-    T = args['T']        
-    lamb_dicke = args['lamb_dicke']
-    off_resonant = args['off_resonant']
-    w_trap = args['trap_freq'] 
+    T = args['T']
+    lamb_dicke = args.get('lamb_dicke')
+    off_resonant = args.get('off_resonant', False)
+    w_trap = args.get('trap_freq')
 
     sigma_plus_mol = tensor(RAP_sigmap_2(), qeye(n_motional))
     a = tensor(qeye(2), destroy(n_motional))
 
-    # Time dependent RAP variables
-    rr = args['rabi_rate']   # Rabi rate of the transition
-    laser_detuning = args['laser_detuning']     # laser detuning   
+    # Constant Rabi rate (no time-dependent envelope)
+    rr = args['rabi_rate']
+    laser_detuning = args['laser_detuning']
+    det_bsb = laser_detuning - w_mol
 
-    det_bsb = laser_detuning - w_mol      # detuning of the molecular transition
-
-    H_term_bsb = sigma_plus_mol * a.dag() * np.exp(-1j*det_bsb*t)
-
-    H_bsb = rr * np.abs(coupling) /2 * (H_term_bsb + H_term_bsb.dag())
+    # Blue sideband term with constant detuning
+    H_term_bsb = sigma_plus_mol * a.dag() * np.exp(-1j * det_bsb * t)
+    H_bsb = rr * np.abs(coupling) / 2 * (H_term_bsb + H_term_bsb.dag())
 
     if off_resonant:
         if lamb_dicke is None:
             raise ValueError("lamb_dicke must be provided when off_resonant is True")
-        # # Carrier off-resonant
-        det_carrier = laser_detuning - (- w_trap + w_mol)  
+            
+        # Carrier detuning with a standard sweep centered at T/2
+        det_carrier = laser_detuning - (-w_trap + w_mol)
+        delta_t_carrier = (D / T) * (t - T / 2) + det_carrier
 
-        delta_t_carrier = D/T * (t - T/2) + det_carrier
-
-        # CHECK THE SIGNS
-        H_term_carrier = sigma_plus_mol * np.exp(-1j*delta_t_carrier*t)
-        H_carrier = rr * np.abs(coupling) /2 / lamb_dicke * (H_term_carrier + H_term_carrier.dag())
+        H_term_carrier = sigma_plus_mol * np.exp(-1j * delta_t_carrier * t)
+        H_carrier = (rr * np.abs(coupling) / 2 / lamb_dicke * 
+                     (H_term_carrier + H_term_carrier.dag()))
         
         return H_bsb + H_carrier
-    else: 
-        return H_bsb 
     
-
-
+    return H_bsb

@@ -1,304 +1,320 @@
+"""
+Visualization Module for Bayesian State Estimation and Simulation.
+
+This module provides tools for:
+- Mapping molecular state distributions into 2D grid matrices for visualization.
+- Generating animations of posterior evolution compared to ground-truth states.
+- Statistical plotting of Cross-Entropy convergence and category-based performance.
+- Comparative analysis between different estimation methods using error-clipped plots.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import os
+import pandas as pd
+from typing import Dict, List, Tuple, Any, Optional, Union
 
 from ._run_manager import plot_bayesian_run
 from saving import save_figure_in_images
 
 
+def matrix_creation(
+    df: pd.DataFrame, 
+    posterior: np.ndarray, 
+    j_max: int, 
+    normalize: bool = True
+) -> np.ndarray:
+    """
+    Transforms a posterior vector into a 2D matrix organized by J and m quantum numbers.
 
+    The function maps the internal states into a grid where columns represent J 
+    and rows represent m. It handles parity (xi) by splitting each grid cell 
+    into two values.
 
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The molecular state dataframe.
+    posterior : np.ndarray
+        The current probability distribution vector.
+    j_max : int
+        Maximum rotational quantum number.
+    normalize : bool, optional
+        If True, renormalizes the population within each J manifold. Default is True.
 
-def matrix_creation(df, posterior, j_max, normalize = True):
-
+    Returns
+    -------
+    matrix : np.ndarray
+        A 2D array of objects (lists [xi_false_val, xi_true_val]) or NaNs.
+    """
     dataframe = df.copy()
     dataframe["posterior"] = posterior
 
-    ## Renormalize
     if normalize:
         for j in range(j_max + 1):
             states_in_j = dataframe.loc[dataframe["j"] == j]
-
             state_dist = states_in_j["posterior"].to_numpy()
             state_dist = state_dist / np.sum(state_dist)
-
             dataframe.loc[dataframe["j"] == j, "posterior"] = state_dist
 
-
-    df_grouped = dataframe.groupby(['j', 'm']).agg({'xi': 'first', 'posterior': list}).reset_index()
+    # Group by J and m, aggregating the two parity (xi) states into a list
+    df_grouped = dataframe.groupby(['j', 'm']).agg(
+        {'xi': 'first', 'posterior': list}
+    ).reset_index()
     
+    # Ensure lists represent [xi=False, xi=True] even if one state is missing
     for index, row in df_grouped.iterrows():
-        if len(row['posterior']) == 1:  # Se la lista contiene un solo valore
+        if len(row['posterior']) == 1:
             if row['xi'] == False:
-                df_grouped.at[index, 'posterior'] = [row['posterior'][0], np.nan]  # Aggiungi NaN come secondo elemento
+                df_grouped.at[index, 'posterior'] = [row['posterior'][0], np.nan]
             elif row['xi'] == True:
-                df_grouped.at[index, 'posterior'] = [np.nan, row['posterior'][0]]  # Aggiungi NaN come primo elemento
+                df_grouped.at[index, 'posterior'] = [np.nan, row['posterior'][0]]
     
+    df_coords = df_grouped[["j", "m"]]
+    state_vals = df_grouped["posterior"].tolist()
     
-    df = df_grouped[["j", "m"]]
-    state = df_grouped["posterior"].tolist()
-    
-    
-    sq_array = np.zeros((2 * (j_max+1), j_max + 1), dtype=object)    # *2
+    # Initialize grid: height spans 2*j_max + 1, width spans j_max + 1
+    sq_array = np.zeros((2 * (j_max + 1), j_max + 1), dtype=object)
     sq_array[:] = np.nan
     
     list_index = []
-    
-    for index, row in df.iterrows():
+    for _, row in df_coords.iterrows():
         j = row['j']
         m = row['m']
+        # Map m to positive row indices
         list_index.append([int(j_max + m + 0.5), int(j)])
     
-    
     for data_idx, idx_tuple in enumerate(list_index):
-        sq_array[idx_tuple[0], idx_tuple[1]] = state[data_idx]
+        sq_array[idx_tuple[0], idx_tuple[1]] = state_vals[data_idx]
     
-
-    matrix = sq_array
-
-    return matrix 
+    return sq_array
 
 
-def simulator_state(df, index, j_max):
+def simulator_state(
+    df: pd.DataFrame, 
+    index: int, 
+    j_max: int
+) -> List[float]:
+    """
+    Determines the grid coordinates of the physical simulator state.
 
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Molecular state dataframe.
+    index : int
+        The global index of the current state.
+    j_max : int
+        Maximum rotational quantum number.
+
+    Returns
+    -------
+    coordinates : list
+        List of [row_index, column_offset] for visualization mapping.
+    """
     dataframe = df.copy()
-
     dataframe["outcome"] = 0
     dataframe.loc[index, "outcome"] = 1
 
-
-    df_grouped = dataframe.groupby(['j', 'm']).agg({'xi': 'first', 'outcome': list}).reset_index()
+    df_grouped = dataframe.groupby(['j', 'm']).agg(
+        {'xi': 'first', 'outcome': list}
+    ).reset_index()
     
-    for index, row in df_grouped.iterrows():
-        if len(row['outcome']) == 1:  # Se la lista contiene un solo valore
+    for idx_row, row in df_grouped.iterrows():
+        if len(row['outcome']) == 1:
             if row['xi'] == False:
-                df_grouped.at[index, 'outcome'] = [row['outcome'][0], np.nan]  # Aggiungi NaN come secondo elemento
+                df_grouped.at[idx_row, 'outcome'] = [row['outcome'][0], np.nan]
             elif row['xi'] == True:
-                df_grouped.at[index, 'outcome'] = [np.nan, row['outcome'][0]]  # Aggiungi NaN come primo elemento
+                df_grouped.at[idx_row, 'outcome'] = [np.nan, row['outcome'][0]]
     
+    df_coords = df_grouped[["j", "m"]]
+    state_vals = df_grouped["outcome"].tolist()
     
-    df = df_grouped[["j", "m"]]
-    state = df_grouped["outcome"].tolist()
-    
-    
-    sq_array = np.zeros((2 * (j_max+1), j_max + 1), dtype=object)    # *2
+    sq_array = np.zeros((2 * (j_max + 1), j_max + 1), dtype=object)
     sq_array[:] = np.nan
     
     list_index = []
-    
-    for index, row in df.iterrows():
+    for _, row in df_coords.iterrows():
         j = row['j']
         m = row['m']
         list_index.append([int(j_max + m + 0.5), int(j)])
     
-    
     for data_idx, idx_tuple in enumerate(list_index):
-        sq_array[idx_tuple[0], idx_tuple[1]] = state[data_idx]
-    
+        sq_array[idx_tuple[0], idx_tuple[1]] = state_vals[data_idx]
 
-    matrix = sq_array
-
-
-    for (x, y), w in np.ndenumerate(matrix):
-
-        var = isinstance(w, float)
-        if var:
+    coordinates = [0.0, 0.0]
+    # Identify where the "1" (active state) is located
+    for (x, y), w in np.ndenumerate(sq_array):
+        if isinstance(w, float):
             continue
         else:
             w_false = w[0]
             w_true = w[1]
-
             if w_false == 1:
                 coordinates = [x, y + 0.25]   
             if w_true == 1:
                 coordinates = [x, y - 0.25]
 
-
     return coordinates 
 
 
+def plot_matrix(
+    ax: plt.Axes, 
+    matrix: np.ndarray, 
+    coordinate_out: List[float], 
+    j_max: int
+) -> None:    
+    """
+    Renders the Bayesian belief matrix and marks the simulator ground truth.
 
-def plot_matrix(ax, matrix, coordinate_out, j_max):    
+    Belief magnitude is shown as square sizes (blue), while the physical 
+    state is highlighted with a red border.
 
-
+    Parameters
+    ----------
+    ax : plt.Axes
+        Matplotlib axis to draw on.
+    matrix : np.ndarray
+        Belief grid from matrix_creation.
+    coordinate_out : list
+        Physical state coordinates from simulator_state.
+    j_max : int
+        Max J value for axis centering.
+    """
     max_weight = 1
-    ax_facecolor='#D3D3D3'
-    ax_bkgdcolor="white"
-    
+    ax_bkgdcolor = "white"
     ax_facecolor = '#D3D3D3'
     
-    
-    
     for (x, y), w in np.ndenumerate(matrix):
-
-        var = isinstance(w, float)
-    
-        #single values: alwasy nan
-        if var:
-
+        if isinstance(w, float):
+            # Background placeholder for empty cells
             size = 1.0
-            face_color = ax_bkgdcolor
-            edge_color = ax_bkgdcolor
-    
             rect = plt.Rectangle(
-                [x-0.5 - size / 2 - j_max, y - size / 2],
-                size,
-                size,
-                facecolor=face_color,
-                edgecolor=edge_color,
+                [x - 0.5 - size / 2 - j_max, y - size / 2],
+                size, size, facecolor=ax_bkgdcolor, edgecolor=ax_bkgdcolor
             )
             ax.add_patch(rect)
         else:
-
-            w_false = w[0]
-            w_true = w[1]
+            w_false, w_true = w[0], w[1]
     
+            # Plot state with xi = False
             if not np.isnan(w_false):
-                face_color = "blue"
-                edge_color = "blue"
-    
+                face_color, edge_color = "blue", "blue"
                 w_plot = abs(w_false)
                 size = np.sqrt(w_plot / max_weight)
             else:
-                size = 1.0
-                face_color = ax_bkgdcolor
-                edge_color = ax_bkgdcolor
+                size, face_color, edge_color = 1.0, ax_bkgdcolor, ax_bkgdcolor
     
-            size_x = size
-            size_y = size*0.5
-            rect = plt.Rectangle(
-                [x-0.5 - size_x / 2 - j_max, y + 0.25 - size_y / 2],
-                size_x,
-                size_y,
-                facecolor=face_color,
-                edgecolor=edge_color,
+            rect_f = plt.Rectangle(
+                [x - 0.5 - size / 2 - j_max, y + 0.25 - (size * 0.5) / 2],
+                size, size * 0.5, facecolor=face_color, edgecolor=edge_color
             )
-            ax.add_patch(rect)
+            ax.add_patch(rect_f)
     
+            # Plot state with xi = True
             if not np.isnan(w_true):
-                face_color = "blue"
-                edge_color = "blue"
-    
-
+                face_color, edge_color = "blue", "blue"
                 w_plot = abs(w_true)
                 size = np.sqrt(w_plot / max_weight)
             else:
-                size = 1.0
-                face_color = ax_bkgdcolor
-                edge_color = ax_bkgdcolor
+                size, face_color, edge_color = 1.0, ax_bkgdcolor, ax_bkgdcolor
     
-            size_x = size
-            size_y = size*0.5
-            rect = plt.Rectangle(
-                [x-0.5 - size_x / 2 - j_max, y - 0.25 - size_y / 2],
-                size_x,
-                size_y,
-                facecolor=face_color,
-                edgecolor=edge_color,
+            rect_t = plt.Rectangle(
+                [x - 0.5 - size / 2 - j_max, y - 0.25 - (size * 0.5) / 2],
+                size, size * 0.5, facecolor=face_color, edgecolor=edge_color
             )
-            ax.add_patch(rect)
+            ax.add_patch(rect_t)
             
-
-    x_out = coordinate_out[0]
-    y_out = coordinate_out[1]
-
-    rect = plt.Rectangle(
-                [x_out-0.5 - 1 / 2 - j_max, y_out - 0.5 / 2],
-                1,
-                0.5,
-                facecolor='none',
-                edgecolor="red",
-            )
-    ax.add_patch(rect)
+    # Mark Simulator Ground Truth
+    x_out, y_out = coordinate_out[0], coordinate_out[1]
+    rect_out = plt.Rectangle(
+        [x_out - 0.5 - 1 / 2 - j_max, y_out - 0.5 / 2],
+        1, 0.5, facecolor='none', edgecolor="red"
+    )
+    ax.add_patch(rect_out)
     
     ax.patch.set_facecolor(ax_facecolor)
     ax.set_aspect("equal", "box")
-    
     ax.set_ylim([-0.5, matrix.shape[1] - 0.5])
 
 
-
-
-def heatmap_posterior_animation(Estimator, Simulator, molecule, j_max, folder="animations", base_filename="evolution_EwS_"):
-    
+def heatmap_posterior_animation(
+    Estimator: Any, 
+    Simulator: Any, 
+    molecule: Any, 
+    j_max: int, 
+    folder: str = "animations", 
+    base_filename: str = "evolution_EwS_"
+) -> None:
+    """
+    Creates a GIF showing the evolution of the estimator belief vs physical state.
+    """
     Estimator_list = Estimator.history_list
     Simulator_list = Simulator.history_list
 
-
     posteriors = [np.array(entry["posterior"]) for entry in Estimator_list]
-    
-    
     matrices = [
-        matrix_creation(df=molecule.state_df, posterior=posterior, j_max=j_max, normalize=False)
-        for posterior in posteriors
+        matrix_creation(df=molecule.state_df, posterior=p, j_max=j_max, normalize=False)
+        for p in posteriors
     ]
 
-    
-    indices = []
     coordinates = []
     for i in range(len(Simulator_list[1:])):
-        index = Simulator_list[i+1][0]
-        indices.append(index)
-        coordinate = simulator_state(df=molecule.state_df, index=index, j_max=j_max)
-        coordinates.append(coordinate)
+        idx = Simulator_list[i + 1][0]
+        coord = simulator_state(df=molecule.state_df, index=idx, j_max=j_max)
+        coordinates.append(coord)
 
-    
     fig, ax = plt.subplots(figsize=(20, 13))
     ax_facecolor = '#D3D3D3'
 
     def update(step):
         ax.clear()
         ax.set_facecolor(ax_facecolor)
-
         matrix = matrices[step]
         coordinate_out = coordinates[step]
         plot_matrix(ax, matrix, coordinate_out, j_max)
 
+        # Axis labeling and formatting
         ax.set_xlim([-j_max - 1, j_max + 1])
         ax.set_yticks(np.arange(0, j_max + 1))
         ax.set_yticks(np.arange(0, j_max + 2) - 0.5, minor=True)
         ax.grid(True, which="minor", color="w")
-        ax.tick_params(which="minor", bottom=False, left=False)
         ax.set_xlabel("$m$")
         ax.set_ylabel("$J$")
-        ax.xaxis.label.set_color("k")
-        ax.yaxis.label.set_color("k")
-        ax.tick_params(axis="x", colors="k")
-        ax.tick_params(axis="y", colors="k")
-        for spine in ax.spines.values():
-            spine.set_color("k")
-        ax.set_aspect("equal", adjustable="box")
         ax.set_xticks(np.arange(-j_max - 0.5, j_max + 1.5, 1))
         ax.set_title(f"Evolution of Estimator Posterior with Simulator state (Step {step})")
 
     ani = FuncAnimation(fig, update, frames=len(Estimator_list), interval=500)
     
+    # Save GIF with automatic numbering
     os.makedirs(folder, exist_ok=True)
     existing = [f for f in os.listdir(folder) if f.startswith(base_filename) and f.endswith(".gif")]
-    numbers = [int(f.split("_")[-1].split(".")[0]) for f in existing if "_" in f and f.split("_")[-1].split(".")[0].isdigit()]
-    next_number = max(numbers) + 1 if numbers else 1
-    filename = os.path.join(folder, f"{base_filename}_{next_number}.gif")
+    nums = [int(f.split("_")[-1].split(".")[0]) for f in existing if f.split("_")[-1].split(".")[0].isdigit()]
+    next_num = max(nums) + 1 if nums else 1
+    filename = os.path.join(folder, f"{base_filename}_{next_num}.gif")
 
     ani.save(filename, writer="ffmpeg", fps=2)
     print(f"Animation saved to: {filename}")
 
 
-
-def vector_posterior_animation(Estimator, folder="animations", base_filename="evolution_plot"):
-    
+def vector_posterior_animation(
+    Estimator: Any, 
+    folder: str = "animations", 
+    base_filename: str = "evolution_plot"
+) -> None:
+    """
+    Creates a GIF showing the Prior and Posterior evolution as linear vectors.
+    """
     num_steps = len(Estimator.history_list)
-    
     fig, ax = plt.subplots(figsize=(10, 4))
     line_prior, = ax.plot([], [], linestyle="-", color="blue", label="Prior")
     line_posterior, = ax.plot([], [], linestyle="-.", color="green", label="Posterior")
 
-    ax.set_xlabel("Index")
-    ax.set_ylabel("Value")
-    ax.set_title("Evolution of Prior, Likelihood, and Posterior")
+    ax.set_xlabel("State Index")
+    ax.set_ylabel("Probability Value")
     ax.legend()
     ax.grid(True)
-
     
     xlim = len(Estimator.history_list[0]["prior"])
     ax.set_xlim(0, xlim)
@@ -308,30 +324,31 @@ def vector_posterior_animation(Estimator, folder="animations", base_filename="ev
         entry = Estimator.history_list[step]
         prior = np.array(entry["prior"])
         posterior = np.array(entry["posterior"])
-
         line_prior.set_data(range(len(prior)), prior)
         line_posterior.set_data(range(len(posterior)), posterior)
-        ax.set_title(f"Evolution of Prior, Likelihood, and Posterior (Step {step})")
+        ax.set_title(f"Bayesian Evolution: Prior vs Posterior (Step {step})")
         return line_prior, line_posterior
 
     ani = FuncAnimation(fig, update, frames=num_steps, interval=200, blit=False)
-
     
     os.makedirs(folder, exist_ok=True)
     existing = [f for f in os.listdir(folder) if f.startswith(base_filename) and f.endswith(".gif")]
-    numbers = [int(f.split("_")[-1].split(".")[0]) for f in existing if "_" in f and f.split("_")[-1].split(".")[0].isdigit()]
-    next_number = max(numbers) + 1 if numbers else 1
-    filename = os.path.join(folder, f"{base_filename}_{next_number}.gif")
+    nums = [int(f.split("_")[-1].split(".")[0]) for f in existing if f.split("_")[-1].split(".")[0].isdigit()]
+    next_num = max(nums) + 1 if nums else 1
+    filename = os.path.join(folder, f"{base_filename}_{next_num}.gif")
 
     ani.save(filename, writer="ffmpeg", fps=2)
     print(f"Animation saved to: {filename}")
 
 
-
-
-
-def plot_cross_entropies_vs_step(curves_by_label, color_map, filename = "figure.png"):
-
+def plot_cross_entropies_vs_step(
+    curves_by_label: Dict[str, list], 
+    color_map: Dict[str, str], 
+    filename: str = "figure.png"
+) -> None:
+    """
+    Plots Cross-Entropy curves vs simulation steps categorized by label.
+    """
     fig, ax = plt.subplots(figsize=(8, 4))
     seen_labels = set()
 
@@ -346,40 +363,32 @@ def plot_cross_entropies_vs_step(curves_by_label, color_map, filename = "figure.
     ax.set_title("Monte Carlo Initialization: Cross-Entropy vs Step", fontsize=25)
     ax.grid(True, linestyle='--', alpha=0.5)
     ax.legend(fontsize=20)
-    ax.tick_params(axis='both', labelcolor="black", labelsize=20, pad = 8)
-
+    ax.tick_params(axis='both', labelsize=20, pad=8)
 
     fig.tight_layout()
-
     plot_bayesian_run(fig, filename)
-
     plt.show()
 
-
+    # Create category-specific subplots
     name, ext = os.path.splitext(filename)
     filename_category = f"{name}_per_category{ext}"
 
-
-    fig, axs = plt.subplots(2, 2, figsize=(14, 8), sharex=True, sharey=True)
+    fig_cat, axs = plt.subplots(2, 2, figsize=(14, 8), sharex=True, sharey=True)
     label_order = ['LM', 'PU', 'PL', 'Other']
 
-    for ax, label in zip(axs.flat, label_order):
+    for ax_cat, label in zip(axs.flat, label_order):
         for steps, ce in curves_by_label[label]:
-            ax.plot(steps, ce, linestyle='-', color=color_map[label], alpha=0.2)
-        ax.set_title(f"{label}")
-        ax.grid(True, linestyle='--', alpha=0.5)
-        ax.set_xlabel("Step", fontsize=20)
-        ax.set_ylabel("Cross-Entropy", fontsize=20)
-        ax.tick_params(axis='both', labelcolor="black", labelsize=20, pad = 8)
+            ax_cat.plot(steps, ce, linestyle='-', color=color_map[label], alpha=0.2)
+        ax_cat.set_title(f"{label}")
+        ax_cat.grid(True, linestyle='--', alpha=0.5)
+        ax_cat.set_xlabel("Step", fontsize=20)
+        ax_cat.set_ylabel("Cross-Entropy", fontsize=20)
+        ax_cat.tick_params(axis='both', labelsize=20, pad=8)
 
-
-    fig.suptitle("Cross-Entropy vs Step per Category", fontsize=25)
+    fig_cat.suptitle("Cross-Entropy vs Step per Category", fontsize=25)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
-
-    plot_bayesian_run(fig, filename_category)
-
+    plot_bayesian_run(fig_cat, filename_category)
     plt.show()
-
 
     total_elements = sum(len(lst) for lst in curves_by_label.values())
     print("Total number of initializations:", total_elements)
@@ -388,16 +397,19 @@ def plot_cross_entropies_vs_step(curves_by_label, color_map, filename = "figure.
         print(f"{label}: {len(lst)} Initializations")
 
 
-        
 
 
-
-
-def histo_final_cross_entropy(curves_by_label, color_map, only_total = False, filename = "figure_histo.png"):
-
+def histo_final_cross_entropy(
+    curves_by_label: Dict[str, list], 
+    color_map: Dict[str, str], 
+    only_total: bool = False, 
+    filename: str = "figure_histo.png"
+) -> Tuple[int, float, int, float]:
+    """
+    Plots histograms of the final Cross-Entropy values achieved by the estimator.
+    """
     label_order = ['LM', 'PU', 'PL', 'Other']
 
-    # Step 1: raccogli tutti i last_values positivi per trovare min e max globali
     all_last_values = []
     curves_last_values = {}
 
@@ -407,15 +419,13 @@ def histo_final_cross_entropy(curves_by_label, color_map, only_total = False, fi
         last_values = np.array(last_values)
         negativi = last_values[last_values <= 0]
         if len(negativi) > 0:
-            print(f"Valori negativi o zero per {label}: {negativi}")
-        # last_values = last_values[last_values > 0]
+            print(f"Negative values or zero for {label}: {negativi}")
         all_last_values.extend(last_values)
         curves_last_values[label] = last_values
 
     global_min = min(all_last_values)
     global_max = max(all_last_values)
 
-    # Step 2: definisci i bin logaritmici comuni
     bins = np.logspace(np.log10(global_min), np.log10(global_max), 100)
     vline = -np.log(0.9)
 
@@ -425,21 +435,18 @@ def histo_final_cross_entropy(curves_by_label, color_map, only_total = False, fi
         name, ext = os.path.splitext(filename)
         filename_category = f"{name}_per_category{ext}"
 
-        # Step 3: plottaggio con asse secondario
         for ax, label in zip(axs.flat, label_order):
             last_values = curves_last_values[label]
 
             ax.hist(last_values, bins=bins, color=color_map[label], alpha=0.7, edgecolor='black')
             ax.set_xscale('log')
             ax.axvline(vline, color='red', linestyle='--', label='H @ p=0.9')
-            ax.set_title(f"{label} – Final cross-entropy", fontsize=25)
+            ax.set_title(f"{label} - Final cross-entropy", fontsize=25)
             ax.set_ylabel("Count", fontsize=20)
             ax.grid(True, linestyle='--', alpha=0.5, which='both')
             ax.legend(fontsize=20)
             ax.tick_params(axis='both', labelcolor="black", labelsize=20, pad = 8)
 
-
-        # Etichette globali
         for ax in axs[0]:
             ax.set_xlabel("")
             ax.tick_params(labelbottom=False)
@@ -507,16 +514,29 @@ def histo_final_cross_entropy(curves_by_label, color_map, only_total = False, fi
 
 
 
-
-# Funzione interna per plot con controllo limiti
-def plot_with_clipped_errors(ax, x, mean, std, median, title, N, num_methods, colors, method_names, success_rate_total=None):
+def plot_with_clipped_errors(
+    ax: plt.Axes, 
+    x: np.ndarray, 
+    mean: list, 
+    std: list, 
+    median: list, 
+    title: str, 
+    N: int, 
+    num_methods: int, 
+    colors: list, 
+    method_names: list, 
+    success_rate_total: Optional[list] = None
+) -> None:
+    """
+    Internal utility to plot error bars clipped to physical bounds (e.g., 0 to 1).
+    """
     for i in range(num_methods):
         lower = max(0, mean[i] - std[i])
 
 
         if title == "Probability":
             upper = min(1, mean[i] + std[i])
-        else:  # "Steps"
+        else:  
             upper = mean[i] + std[i]
 
         yerr = np.array([[mean[i] - lower], [upper - mean[i]]])
@@ -528,26 +548,16 @@ def plot_with_clipped_errors(ax, x, mean, std, median, title, N, num_methods, co
 
             yerr_succ = np.array([[success_rate_total[i] - lower_succ], [upper_succ - success_rate_total[i]]])
 
-        # Quadrato per la media con barre di errore
-        ax.errorbar(x[i], mean[i], yerr=yerr, fmt='s',  # 's' = square
+        ax.errorbar(x[i], mean[i], yerr=yerr, fmt='s',  
                     color=colors[i], capsize=14, markersize=8, elinewidth=1.5, capthick=2, markeredgecolor='black')
 
-        # Triangolo per la mediana
-        ax.plot(x[i], median[i], marker='^',  # '^' = triangle up
+        ax.plot(x[i], median[i], marker='^',  
                 color=colors[i], markersize=5, linestyle='None', markeredgecolor='black')
         
-        # Barra per la probabilità di successo
-        # ax.axhline(x[i], success_rate_total, color='blue', linestyle='--', label="Probabilità di successo")
-
         if success_rate_total is not None:
-            # ax.plot(x[i], success_rate_total[i], marker='o',  # '^' = triangle up
-            #         color=colors[i], markersize=5, linestyle='None', markeredgecolor='black')
-            ax.errorbar(x[i], success_rate_total[i], yerr=yerr_succ, fmt='o',  # 's' = square
+            ax.errorbar(x[i], success_rate_total[i], yerr=yerr_succ, fmt='o',  
                     color=colors[i], capsize=8, markersize=5, elinewidth=1, markeredgecolor='black')
             cross_patch = plt.Line2D([0], [0], marker='o', color='black', markersize=5, linestyle='None', label="Success Rate")
-
-        # Barra per la probabilità condizionata
-        # ax.axhline(success_rate_total, color='green', linestyle='--', label="Probabilità condizionata al leftmost")
 
     ax.set_title(title)
     ax.set_xticks(x)
@@ -563,44 +573,42 @@ def plot_with_clipped_errors(ax, x, mean, std, median, title, N, num_methods, co
 
     square_patch = plt.Line2D([0], [0], marker='s', color='black', markersize=8,
                           linestyle='None', label="Mean")
-
-    # if success_rate_total is not None:
-    #     ax.legend(handles=[triangle_patch, cross_patch] + ax.get_legend_handles_labels()[0])
-    # else:
-    #     ax.legend(handles=[triangle_patch] + ax.get_legend_handles_labels()[0])
-
-
-
     ax.set_title(title)
     ax.set_xticks(x)
     ax.set_xticklabels(method_names, rotation=45)
     ax.grid(True, linestyle="--", alpha=0.5)
 
-    # PATCHES per legenda
     square_patch = plt.Line2D([0], [0], marker='s', color='black', markersize=8,
-                              linestyle='None', label="Mean")            # ⬛ Media
+                              linestyle='None', label="Mean")            
     triangle_patch = plt.Line2D([0], [0], marker='^', color='black', markersize=6,
-                                linestyle='None', label="Median")       # 🔺 Mediana
+                                linestyle='None', label="Median")       
 
     handles = [square_patch, triangle_patch]
 
     if success_rate_total is not None:
         cross_patch = plt.Line2D([0], [0], marker='o', color='black', markersize=6,
-                                 linestyle='None', label="Success Rate")  # ⚫ Success rate
+                                 linestyle='None', label="Success Rate")  
         handles.append(cross_patch)
 
-    # Aggiungi eventuali altri handle già generati da errorbar
     existing_handles = ax.get_legend_handles_labels()[0]
 
     ax.legend(handles=handles + existing_handles, fontsize=10)
 
 
 
-def plot_method_comparison(stats_list, method_names, success_rate_total, N, filename="method_comparison.svg"):
+def plot_method_comparison(
+    stats_list: list, 
+    method_names: list, 
+    success_rate_total: list, 
+    N: int, 
+    filename: str = "method_comparison.svg"
+) -> None:
+    """
+    Generates high-level plots comparing different Bayesian estimation methods.
+    """
     num_methods = len(stats_list)
     x = np.arange(num_methods)
 
-    # Estrai i dati
     prob_mean_success = [s["probability"]["success"]["mean"] for s in stats_list]
     prob_std_success = [s["probability"]["success"]["std"] for s in stats_list]
     prob_median_success = [s["probability"]["success"]["median"] for s in stats_list]
@@ -618,20 +626,15 @@ def plot_method_comparison(stats_list, method_names, success_rate_total, N, file
     steps_std_all = [s["steps"]["all"]["std"] for s in stats_list]
     steps_median_all = [s["steps"]["all"]["median"] for s in stats_list]
 
-    # Colori professionali
     colors = plt.cm.tab10.colors[:num_methods]
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=False)
     fig.suptitle("Method comparison \n Distribution of the final probability of correct estimation and number of steps", fontsize=14)
 
-    # Subplot: Probabilità di successo
     plot_with_clipped_errors(axes[0], x, prob_mean_all, prob_std_all, prob_median_all, "Probability", N, num_methods, colors, method_names, success_rate_total=success_rate_total)
-    # axes[0].legend()
     axes[0].set_ylabel("Probability")
 
-    # Subplot: Probabilità totale
     plot_with_clipped_errors(axes[1], x, steps_mean_all, steps_std_all, steps_median_all, "Steps", N, num_methods, colors, method_names)
-    # axes[1].legend()
     axes[1].set_ylabel("Steps")
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
@@ -639,3 +642,4 @@ def plot_method_comparison(stats_list, method_names, success_rate_total, N, file
     save_figure_in_images(fig, filename)
 
     plt.show()
+

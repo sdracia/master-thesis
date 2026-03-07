@@ -493,6 +493,7 @@ def classical_odf_varying_B(
     for b, color in zip(b_field_gauss, colors):
         # Generate molecule and state distribution for each B field
         mo1 = CaOH.create_molecule_data(b_field_gauss=b, j_max=j_max)
+        states1 = States(mo1, temperature)
         
         frequencies, exc_probs = get_spectrum(
             molecule=mo1,

@@ -1,3 +1,8 @@
+# File: simulator_state.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module for state initialization and stochastic sampling in molecular simulations.
 

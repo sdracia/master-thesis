@@ -1,3 +1,8 @@
+# File: adiabatic_elimination.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module to simulate and visualize the dynamics of a three-level quantum system
 with optional adiabatic elimination to a two-level approximation.

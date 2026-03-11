@@ -1,3 +1,8 @@
+# File: data_fitting.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module for ODF experimental data retrieval and signal fitting.
 

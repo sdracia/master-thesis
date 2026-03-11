@@ -1,3 +1,8 @@
+# File: estimator.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Bayesian State Estimation Module for Molecular Populations.
 

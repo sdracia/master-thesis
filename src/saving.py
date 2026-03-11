@@ -1,3 +1,8 @@
+# File: saving.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module for saving simulation results and figures for molecular pumping and RAP.
 

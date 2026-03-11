@@ -1,3 +1,8 @@
+# File: exp_imperfections.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module for analyzing molecular transition variations and applying experimental imperfections.
 

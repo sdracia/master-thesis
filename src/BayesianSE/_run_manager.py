@@ -1,3 +1,8 @@
+# File: _run_manager.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Management Module for Bayesian Simulation Runs and Data Logging.
 

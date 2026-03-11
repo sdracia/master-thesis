@@ -1,3 +1,8 @@
+# File: odf_operators.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module defining operators for molecules, motion, and co-trapped ions.
 

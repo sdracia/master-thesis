@@ -1,3 +1,8 @@
+# File: _raman.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Raman coupling evaluation for Zeeman-hyperfine states.
 

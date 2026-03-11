@@ -1,3 +1,8 @@
+# File: odf_hamiltonians.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module defining time-dependent Hamiltonians for molecules, motion, and co-trapped ions.
 

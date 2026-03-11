@@ -1,3 +1,8 @@
+# File: estimator_update.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module for Bayesian Probability Distribution Updates in Molecular State Estimation.
 

@@ -1,3 +1,8 @@
+# File: _dm2.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 DM2-specific transition and Zeeman level routines.
 

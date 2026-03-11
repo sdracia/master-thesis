@@ -1,3 +1,8 @@
+# File: _plotting.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Zeeman level plotting routines for molecular states.
 

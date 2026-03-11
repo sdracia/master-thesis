@@ -1,3 +1,8 @@
+# File: utils.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Module for visualizing molecular state distributions and transitions.
 

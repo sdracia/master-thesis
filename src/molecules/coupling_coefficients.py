@@ -1,3 +1,8 @@
+# File: coupling_coefficients.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Plot Raman coupling coefficients between Zeeman sublevels for molecular transitions.
 

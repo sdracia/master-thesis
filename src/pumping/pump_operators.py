@@ -1,3 +1,8 @@
+# File: pump_operators.py
+# Created: 01-02-2026
+# Author: Andrea Turci <turci.andrea01@gmail.com>
+# Institution: University of Innsbruck - UIBK
+
 """
 Quantum Operators Module for Molecular Cooling and State Manipulation.
 

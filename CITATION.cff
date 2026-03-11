@@ -6,8 +6,9 @@ authors:
   - family-names: Turci
     given-names: Andrea
     affiliation: University of Padua
-version: 1.0
-date-released: 2025
+version: 1.0.0
+date-released: 2026-03-11
+doi: 10.5281/zenodo.18961430
 license: MIT
 
 keywords:

@@ -115,3 +115,8 @@ If you use this code in your work, please cite the thesis and this repository:
 
     Andrea Turci, Bayesian Inference for Molecular Quantum Logic Spectroscopy,
     Master's Thesis, University of Innsbruck, 2025.
+
+
+If you use this software, please cite it using the following DOI:
+
+[![DOI](https://zenodo.org/badge/920575264.svg)](https://doi.org/10.5281/zenodo.18961430)

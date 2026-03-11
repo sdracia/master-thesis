@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: "Bayesian Inference for Molecular Quantum Logic Spectroscopy"
+message: "If you use this software, please cite it using the metadata below."
+type: software
+authors:
+  - family-names: Turci
+    given-names: Andrea
+    affiliation: University of Padua
+version: 1.0
+date-released: 2025
+license: MIT
+
+keywords:
+  - quantum logic spectroscopy
+  - molecular ions
+  - Bayesian inference
+  - quantum simulation
+  - CaH
+  - CaOH

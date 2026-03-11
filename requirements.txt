@@ -1,0 +1,11 @@
+numpy
+scipy
+pandas
+matplotlib
+seaborn
+qutip
+lmfit
+joblib
+imageio
+scienceplots
+wigners
